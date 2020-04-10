@@ -1,4 +1,3 @@
-#![allow(unused_must_use)] // FIXME
 use crate::visitor::StackdriverVisitor;
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Value;
@@ -51,6 +50,50 @@ where
             fields: StackdriverFields,
         }
     }
+
+    fn visit<S>(&self, event: &Event, context: Context<S>) -> Result<(), Error>
+    where
+        S: Subscriber + for<'span> LookupSpan<'span>,
+    {
+        let writer = self.writer.make_writer();
+        let meta = event.metadata();
+        let mut time = String::new();
+
+        self.time.format_time(&mut time).map_err(|_| Error::Time)?;
+
+        let mut serializer = serde_json::Serializer::new(writer);
+
+        let mut serializer = serializer.serialize_map(None)?;
+
+        serializer.serialize_entry("time", &time)?;
+        serializer.serialize_entry("severity", &meta.level().as_serde())?;
+        serializer.serialize_entry("target", &meta.target())?;
+
+        if let Some(span) = context.lookup_current() {
+            let name = &span.name();
+            let extensions = span.extensions();
+            let formatted_fields = extensions
+                .get::<FormattedFields<StackdriverFields>>()
+                .expect("No fields!");
+
+            // TODO: include serializable data type in extensions instead of str
+            let mut fields: Value = serde_json::from_str(&formatted_fields)?;
+
+            fields["name"] = serde_json::json!(name);
+
+            serializer.serialize_entry("span", &fields)?;
+        }
+
+        // TODO: enable deeper structuring of keys and values
+        // https://github.com/tokio-rs/tracing/issues/663
+        let mut visitor = SerdeMapVisitor::new(serializer);
+
+        event.record(&mut visitor);
+
+        let result = visitor.finish()?;
+
+        Ok(result)
+    }
 }
 
 impl Default for Stackdriver {
@@ -60,29 +103,6 @@ impl Default for Stackdriver {
             writer: || std::io::stdout(),
             fields: StackdriverFields,
         }
-    }
-}
-
-#[derive(Debug)]
-enum Error {
-    Serialization(serde_json::Error),
-    Time,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Serialization(error) => write!(formatter, "{}", &error),
-            Self::Time => write!(formatter, "Could not format timestamp"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Self::Serialization(error)
     }
 }
 
@@ -108,52 +128,12 @@ where
         }
     }
 
-    fn on_event(&self, event: &Event<'_>, context: Context<S>) {
-        let writer = self.writer.make_writer();
-        let meta = event.metadata();
-
-        let visit = || -> Result<(), Error> {
-            let mut time = String::new();
-
-            self.time.format_time(&mut time).map_err(|_| Error::Time)?;
-
-            let mut serializer = serde_json::Serializer::new(writer);
-
-            let mut serializer = serializer.serialize_map(None)?;
-
-            serializer.serialize_entry("time", &time)?;
-            serializer.serialize_entry("severity", &meta.level().as_serde())?;
-            serializer.serialize_entry("target", &meta.target())?;
-
-            if let Some(span) = context.lookup_current() {
-                let name = &span.name();
-                let extensions = span.extensions();
-                let formatted_fields = extensions
-                    .get::<FormattedFields<StackdriverFields>>()
-                    .expect("No fields!");
-
-                // TODO: see if extensions can't include the full data type instead of a str
-                // or if we can derive a serializeable data type from the fieldset
-                let mut fields: Value = serde_json::from_str(&formatted_fields)?;
-
-                fields["name"] = serde_json::json!(name);
-
-                serializer.serialize_entry("span", &fields);
-            }
-
-            // TODO: enable deeper structuring of keys and values
-            // https://github.com/tokio-rs/tracing/issues/663
-            let mut visitor = SerdeMapVisitor::new(serializer);
-
-            event.record(&mut visitor);
-
-            let result = visitor.finish()?;
-
-            Ok(result)
-        };
-
-        // FIXME: don't ignore that unwrap
-        visit();
+    #[allow(unused_variables)]
+    fn on_event(&self, event: &Event, context: Context<S>) {
+        if let Err(error) = self.visit(event, context) {
+            #[cfg(test)]
+            eprintln!("{}", &error)
+        }
     }
 }
 
@@ -169,3 +149,25 @@ impl<'a> MakeVisitor<&'a mut dyn Write> for StackdriverFields {
     }
 }
 
+#[derive(Debug)]
+enum Error {
+    Serialization(serde_json::Error),
+    Time,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
+        match self {
+            Self::Serialization(error) => write!(formatter, "{}", &error),
+            Self::Time => write!(formatter, "Could not format timestamp"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<serde_json::Error> for Error {
+    fn from(error: serde_json::Error) -> Self {
+        Self::Serialization(error)
+    }
+}
