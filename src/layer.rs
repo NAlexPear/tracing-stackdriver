@@ -1,4 +1,4 @@
-use crate::visitor::StackdriverVisitor;
+use crate::visitor::{StackdriverEventVisitor, StackdriverVisitor};
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Value;
 use std::{
@@ -9,9 +9,9 @@ use tracing_core::{
     span::{Attributes, Id},
     Event, Subscriber,
 };
-use tracing_serde::{AsSerde, SerdeMapVisitor};
+use tracing_serde::AsSerde;
 use tracing_subscriber::{
-    field::MakeVisitor,
+    field::{MakeVisitor, VisitOutput},
     fmt::{
         time::{ChronoUtc, FormatTime},
         FormatFields, FormattedFields, MakeWriter,
@@ -63,11 +63,11 @@ where
 
         let mut serializer = serde_json::Serializer::new(writer);
 
-        let mut serializer = serializer.serialize_map(None)?;
+        let mut map = serializer.serialize_map(None)?;
 
-        serializer.serialize_entry("time", &time)?;
-        serializer.serialize_entry("severity", &meta.level().as_serde())?;
-        serializer.serialize_entry("target", &meta.target())?;
+        map.serialize_entry("time", &time)?;
+        map.serialize_entry("severity", &meta.level().as_serde())?;
+        map.serialize_entry("target", &meta.target())?;
 
         if let Some(span) = context.lookup_current() {
             let name = &span.name();
@@ -81,18 +81,16 @@ where
 
             fields["name"] = serde_json::json!(name);
 
-            serializer.serialize_entry("span", &fields)?;
+            map.serialize_entry("span", &fields)?;
         }
 
-        // TODO: enable deeper structuring of keys and values
+        // TODO: enable deeper structuring of keys and values across tracing
         // https://github.com/tokio-rs/tracing/issues/663
-        let mut visitor = SerdeMapVisitor::new(serializer);
+        let mut visitor = StackdriverEventVisitor::new(map);
 
         event.record(&mut visitor);
 
-        let result = visitor.finish()?;
-
-        Ok(result)
+        visitor.finish().map_err(Error::from)
     }
 }
 
@@ -137,7 +135,6 @@ where
     }
 }
 
-#[derive(Debug)]
 struct StackdriverFields;
 
 impl<'a> MakeVisitor<&'a mut dyn Write> for StackdriverFields {
@@ -151,6 +148,7 @@ impl<'a> MakeVisitor<&'a mut dyn Write> for StackdriverFields {
 
 #[derive(Debug)]
 enum Error {
+    Formatting(fmt::Error),
     Serialization(serde_json::Error),
     Time,
 }
@@ -158,6 +156,7 @@ enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
         match self {
+            Self::Formatting(error) => write!(formatter, "{}", &error),
             Self::Serialization(error) => write!(formatter, "{}", &error),
             Self::Time => write!(formatter, "Could not format timestamp"),
         }
@@ -169,5 +168,11 @@ impl std::error::Error for Error {}
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Self::Serialization(error)
+    }
+}
+
+impl From<fmt::Error> for Error {
+    fn from(error: fmt::Error) -> Self {
+        Self::Formatting(error)
     }
 }

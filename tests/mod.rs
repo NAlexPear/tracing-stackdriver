@@ -49,7 +49,7 @@ fn includes_correct_custom_fields() {
 
     tracing::subscriber::with_default(subscriber, || {
         let span = tracing::info_span!("test span", foo = "bar");
-        let _ = span.enter();
+        let _guard = span.enter();
         tracing::info!(target: "test target", "some stackdriver message");
     });
 
@@ -138,4 +138,60 @@ fn includes_span() {
 
     assert_eq!(output.span.name, "stackdriver_span");
     assert_eq!(output.span.foo, "bar");
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct MockHttpRequest {
+    latency: String,
+    remote_ip: String,
+    status: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MockHttpEvent {
+    http_request: MockHttpRequest,
+}
+
+#[test]
+fn nests_http_request() {
+    lazy_static! {
+        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    }
+
+    let latency = "0.23s";
+    let remote_ip = "192.168.1.1";
+    let status = 200;
+
+    let mock_http_request = MockHttpRequest {
+        latency: latency.to_string(),
+        remote_ip: remote_ip.to_string(),
+        status,
+    };
+
+    let make_writer = || MockWriter(&BUFFER);
+    let stackdriver = Stackdriver::with_writer(make_writer);
+    let subscriber = Registry::default().with(stackdriver);
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span = tracing::info_span!("stackdriver_span");
+        let _guard = span.enter();
+        tracing::info!(
+            http_request.latency = &latency,
+            http_request.remote_ip = &remote_ip,
+            http_request.status = &status,
+            "some stackdriver message"
+        );
+    });
+
+    let output = serde_json::from_slice::<MockHttpEvent>(
+        &BUFFER
+            .try_lock()
+            .expect("Couldn't get lock on test write target")
+            .to_vec(),
+    )
+    .expect("Error converting test buffer to JSON");
+
+    assert_eq!(&output.http_request, &mock_http_request);
 }
