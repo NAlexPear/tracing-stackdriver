@@ -2,7 +2,7 @@ use crate::visitor::{StackdriverEventVisitor, StackdriverVisitor};
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Value;
 use std::{
-    fmt::{self, Formatter, Write},
+    fmt::{self, Write},
     io,
 };
 use tracing_core::{
@@ -55,13 +55,13 @@ where
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
     {
-        let writer = self.writer.make_writer();
+        let mut buffer: Vec<u8> = Default::default();
         let meta = event.metadata();
         let mut time = String::new();
 
         self.time.format_time(&mut time).map_err(|_| Error::Time)?;
 
-        let mut serializer = serde_json::Serializer::new(writer);
+        let mut serializer = serde_json::Serializer::new(&mut buffer);
 
         let mut map = serializer.serialize_map(None)?;
 
@@ -90,7 +90,13 @@ where
 
         event.record(&mut visitor);
 
-        visitor.finish().map_err(Error::from)
+        visitor.finish().map_err(Error::from)?;
+
+        use std::io::Write;
+        let mut writer = self.writer.make_writer();
+        buffer.write_all(b"\n")?;
+        writer.write_all(&mut buffer)?;
+        Ok(())
     }
 }
 
@@ -146,33 +152,17 @@ impl<'a> MakeVisitor<&'a mut dyn Write> for StackdriverFields {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
-    Formatting(fmt::Error),
-    Serialization(serde_json::Error),
+    #[error("Formatting error")]
+    Formatting(#[from] fmt::Error),
+
+    #[error("Serialization error")]
+    Serialization(#[from] serde_json::Error),
+
+    #[error("Time error")]
     Time,
-}
 
-impl fmt::Display for Error {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        match self {
-            Self::Formatting(error) => write!(formatter, "{}", &error),
-            Self::Serialization(error) => write!(formatter, "{}", &error),
-            Self::Time => write!(formatter, "Could not format timestamp"),
-        }
-    }
-}
-
-impl std::error::Error for Error {}
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Self::Serialization(error)
-    }
-}
-
-impl From<fmt::Error> for Error {
-    fn from(error: fmt::Error) -> Self {
-        Self::Formatting(error)
-    }
+    #[error("IO error")]
+    Io(#[from] std::io::Error),
 }

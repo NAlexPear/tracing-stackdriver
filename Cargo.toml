@@ -10,7 +10,7 @@ description = "Stackdriver-compatible tracing Subscriber"
 keywords = ["tracing", "stackdriver", "logging"]
 
 [badges]
-github = { repository = "NAlexPear/tracing-stackdriver" } 
+github = { repository = "NAlexPear/tracing-stackdriver" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
@@ -21,6 +21,8 @@ tracing-core = "0.1.10"
 tracing-futures = "0.2"
 tracing-subscriber = "0.2"
 tracing-serde = "0.1"
+thiserror = "1.0.26"
+
 
 [dependencies.chrono]
 features = ["serde"]
