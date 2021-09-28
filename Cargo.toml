@@ -1,6 +1,6 @@
 [package]
 name = "tracing-stackdriver"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Alex Pearson <alex@alexpear.com>"]
 edition = "2018"
 license = "MIT"
@@ -22,7 +22,6 @@ tracing-futures = "0.2"
 tracing-subscriber = "0.2"
 tracing-serde = "0.1"
 thiserror = "1.0.26"
-
 
 [dependencies.chrono]
 features = ["serde"]
