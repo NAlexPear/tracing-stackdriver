@@ -1,4 +1,5 @@
 use crate::visitor::{StackdriverEventVisitor, StackdriverVisitor};
+use chrono::{DateTime, Utc};
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Value;
 use std::{
@@ -11,9 +12,9 @@ use tracing_core::{
 };
 use tracing_serde::AsSerde;
 use tracing_subscriber::{
-    field::{MakeVisitor, VisitOutput},
+    field::{MakeVisitor, RecordFields, VisitOutput},
     fmt::{
-        time::{ChronoUtc, FormatTime},
+        format::{JsonFields, Writer},
         FormatFields, FormattedFields, MakeWriter,
     },
     layer::Context,
@@ -22,11 +23,8 @@ use tracing_subscriber::{
 };
 
 /// A tracing adapater for stackdriver
-pub struct Stackdriver<W = fn() -> io::Stdout>
-where
-    W: MakeWriter,
-{
-    time: ChronoUtc,
+pub struct Stackdriver<W = fn() -> io::Stdout> {
+    time: DateTime<Utc>,
     writer: W,
     fields: StackdriverFields,
 }
@@ -40,14 +38,14 @@ impl Stackdriver {
 
 impl<W> Stackdriver<W>
 where
-    W: MakeWriter,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
     /// Initialize the Stackdriver Layer with a custom writer
     pub fn with_writer(writer: W) -> Self {
         Self {
-            time: ChronoUtc::rfc3339(),
+            time: Utc::now(),
             writer,
-            fields: StackdriverFields,
+            fields: StackdriverFields::default(),
         }
     }
 
@@ -57,15 +55,12 @@ where
     {
         let mut buffer: Vec<u8> = Default::default();
         let meta = event.metadata();
-        let mut time = String::new();
-
-        self.time.format_time(&mut time).map_err(|_| Error::Time)?;
 
         let mut serializer = serde_json::Serializer::new(&mut buffer);
 
         let mut map = serializer.serialize_map(None)?;
 
-        map.serialize_entry("time", &time)?;
+        map.serialize_entry("time", &self.time.to_rfc3339())?;
         map.serialize_entry("severity", &meta.level().as_serde())?;
         map.serialize_entry("target", &meta.target())?;
 
@@ -103,9 +98,9 @@ where
 impl Default for Stackdriver {
     fn default() -> Self {
         Self {
-            time: ChronoUtc::rfc3339(),
+            time: Utc::now(),
             writer: || std::io::stdout(),
-            fields: StackdriverFields,
+            fields: StackdriverFields::default(),
         }
     }
 }
@@ -113,9 +108,9 @@ impl Default for Stackdriver {
 impl<S, W> Layer<S> for Stackdriver<W>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
-    W: MakeWriter + 'static,
+    W: for<'writer> MakeWriter<'writer> + 'static,
 {
-    fn new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
+    fn on_new_span(&self, attributes: &Attributes<'_>, id: &Id, context: Context<'_, S>) {
         let span = context.span(id).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
 
@@ -123,11 +118,14 @@ where
             .get_mut::<FormattedFields<StackdriverFields>>()
             .is_none()
         {
-            let mut buffer = String::new();
-            if self.fields.format_fields(&mut buffer, attributes).is_ok() {
-                let fmt_fields: FormattedFields<StackdriverFields> = FormattedFields::new(buffer);
+            let mut fields = FormattedFields::<StackdriverFields>::new(String::new());
 
-                extensions.insert(fmt_fields);
+            if self
+                .fields
+                .format_fields(fields.as_writer(), attributes)
+                .is_ok()
+            {
+                extensions.insert(fields);
             }
         }
     }
@@ -141,7 +139,16 @@ where
     }
 }
 
-struct StackdriverFields;
+#[derive(Default)]
+struct StackdriverFields {
+    json_fields: JsonFields,
+}
+
+impl<'writer> FormatFields<'writer> for StackdriverFields {
+    fn format_fields<R: RecordFields>(&self, writer: Writer<'writer>, fields: R) -> fmt::Result {
+        self.json_fields.format_fields(writer, fields)
+    }
+}
 
 impl<'a> MakeVisitor<&'a mut dyn Write> for StackdriverFields {
     type Visitor = StackdriverVisitor<'a>;
@@ -159,9 +166,6 @@ enum Error {
 
     #[error("Serialization error")]
     Serialization(#[from] serde_json::Error),
-
-    #[error("Time error")]
-    Time,
 
     #[error("IO error")]
     Io(#[from] std::io::Error),

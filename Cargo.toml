@@ -19,13 +19,13 @@ Inflector = "0.11.4"
 serde_json = "1"
 tracing-core = "0.1.10"
 tracing-futures = "0.2"
-tracing-subscriber = "0.2"
+tracing-subscriber = { version = "0.3", features=["json"] }
 tracing-serde = "0.1"
 thiserror = "1.0.26"
 
 [dependencies.chrono]
 features = ["serde"]
-version = "0.4"
+version = "0.4.19"
 
 [dependencies.serde]
 features = ["derive"]
