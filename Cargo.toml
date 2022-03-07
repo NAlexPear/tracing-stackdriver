@@ -9,9 +9,8 @@ repository = "https://github.com/NAlexPear/tracing-stackdriver"
 description = "Stackdriver-compatible tracing Subscriber"
 keywords = ["tracing", "stackdriver", "logging"]
 
-[badges]
-github = { repository = "NAlexPear/tracing-stackdriver" }
-maintenance = { status = "actively-developed" }
+[badges.maintenance]
+status = "actively-developed"
 
 [dependencies]
 futures = "0.3.21"
