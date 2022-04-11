@@ -33,6 +33,14 @@ version = "1.0.136"
 features = ["json"]
 version = "0.3.9"
 
+[dependencies.tracing-opentelemetry]
+optional = true
+version = "0.17.2"
+
 [dev-dependencies]
 lazy_static = "1.4.0"
 tracing = "0.1.31"
+
+[features]
+default = []
+opentelemetry = [ "tracing-opentelemetry"]
