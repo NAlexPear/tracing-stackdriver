@@ -82,13 +82,18 @@ where
             if let Some(otel_data) = extensions.get::<tracing_opentelemetry::OtelData>() {
                 let builder = &otel_data.builder;
                 if let Some(trace_id) = builder.trace_id {
-                    map.serialize_entry("logging.googleapis.com/trace", hex::encode(trace_id.to_bytes()))?;
+                    map.serialize_entry(
+                        "logging.googleapis.com/trace",
+                        hex::encode(trace_id.to_bytes()),
+                    )?;
                 }
                 if let Some(span_id) = builder.span_id {
-                    map.serialize_entry("logging.googleapis.com/spanId", hex::encode(span_id.to_bytes()))?;
+                    map.serialize_entry(
+                        "logging.googleapis.com/spanId",
+                        hex::encode(span_id.to_bytes()),
+                    )?;
                 }
             }
-
         }
 
         // TODO: enable deeper structuring of keys and values across tracing
