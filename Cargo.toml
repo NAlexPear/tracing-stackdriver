@@ -37,10 +37,14 @@ version = "0.3.9"
 optional = true
 version = "0.17.2"
 
+[dependencies.opentelemetry]
+optional = true
+version = "0.17"
+
 [dev-dependencies]
 lazy_static = "1.4.0"
 tracing = "0.1.31"
 
 [features]
 default = []
-opentelemetry = [ "tracing-opentelemetry"]
+otel = [ "tracing-opentelemetry", "opentelemetry"]

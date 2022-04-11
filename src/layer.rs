@@ -78,14 +78,14 @@ where
 
             map.serialize_entry("span", &fields)?;
 
-            #[cfg(feature = "opentelemetry")]
+            #[cfg(feature = "otel")]
             if let Some(otel_data) = extensions.get::<tracing_opentelemetry::OtelData>() {
                 let builder = &otel_data.builder;
                 if let Some(trace_id) = builder.trace_id {
-                    map.serialize_entry("logging.googleapis.com/trace", &trace_id)?;
+                    map.serialize_entry("logging.googleapis.com/trace", trace_id)?;
                 }
                 if let Some(span_id) = builder.span_id {
-                    map.serialize_entry("logging.googleapis.com/spanId", &span_id)?;
+                    map.serialize_entry("logging.googleapis.com/spanId", span_id)?;
                 }
             }
 
