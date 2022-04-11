@@ -84,13 +84,13 @@ where
                 if let Some(trace_id) = builder.trace_id {
                     map.serialize_entry(
                         "logging.googleapis.com/trace",
-                        hex::encode(trace_id.to_bytes()),
+                        &hex::encode(trace_id.to_bytes()),
                     )?;
                 }
                 if let Some(span_id) = builder.span_id {
                     map.serialize_entry(
                         "logging.googleapis.com/spanId",
-                        hex::encode(span_id.to_bytes()),
+                        &hex::encode(span_id.to_bytes()),
                     )?;
                 }
             }
