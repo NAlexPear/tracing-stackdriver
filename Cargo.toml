@@ -40,6 +40,7 @@ version = "0.17.2"
 [dependencies.hex]
 optional = true
 version = "0.4"
+features = ["alloc"]
 
 [dev-dependencies]
 lazy_static = "1.4.0"
