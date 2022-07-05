@@ -12,6 +12,9 @@ keywords = ["tracing", "stackdriver", "logging"]
 [badges.maintenance]
 status = "actively-developed"
 
+[lib]
+doctest = false
+
 [dependencies]
 futures = "0.3.21"
 Inflector = "0.11.4"

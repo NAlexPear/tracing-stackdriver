@@ -69,27 +69,27 @@ where
 {
     fn record_i64(&mut self, field: &Field, value: i64) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         self.values.insert(
-            &field.name(),
+            field.name(),
             serde_json::Value::from(format!("{:?}", value)),
         );
     }
@@ -153,27 +153,27 @@ impl<'a> VisitOutput<fmt::Result> for StackdriverVisitor<'a> {
 impl<'a> Visit for StackdriverVisitor<'a> {
     fn record_i64(&mut self, field: &Field, value: i64) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_u64(&mut self, field: &Field, value: u64) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_bool(&mut self, field: &Field, value: bool) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
         self.values
-            .insert(&field.name(), serde_json::Value::from(value));
+            .insert(field.name(), serde_json::Value::from(value));
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         self.values.insert(
-            &field.name(),
+            field.name(),
             serde_json::Value::from(format!("{:?}", value)),
         );
     }
@@ -205,7 +205,7 @@ impl<'a> io::Write for WriteAdaptor<'a> {
             std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         self.fmt_write
-            .write_str(&s)
+            .write_str(s)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         Ok(s.as_bytes().len())

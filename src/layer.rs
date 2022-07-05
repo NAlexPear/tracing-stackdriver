@@ -72,7 +72,7 @@ where
                 .expect("No fields!");
 
             // TODO: include serializable data type in extensions instead of str
-            let mut fields: Value = serde_json::from_str(&formatted_fields)?;
+            let mut fields: Value = serde_json::from_str(formatted_fields)?;
 
             fields["name"] = serde_json::json!(name);
 
@@ -90,7 +90,7 @@ where
         use std::io::Write;
         let mut writer = self.writer.make_writer();
         buffer.write_all(b"\n")?;
-        writer.write_all(&mut buffer)?;
+        writer.write_all(&buffer)?;
         Ok(())
     }
 }
@@ -99,7 +99,7 @@ impl Default for Stackdriver {
     fn default() -> Self {
         Self {
             time: Utc::now(),
-            writer: || std::io::stdout(),
+            writer: std::io::stdout,
             fields: StackdriverFields::default(),
         }
     }

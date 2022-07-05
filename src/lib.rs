@@ -1,3 +1,5 @@
+#![deny(missing_docs, unreachable_pub)]
+#![allow(clippy::needless_doctest_main)]
 /*!
 `tracing` Subscriber for structuring Stackdriver-compatible
 [`LogEntry`](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry)
@@ -28,9 +30,7 @@ fn main() {
 }
 ```
 */
-#![deny(missing_docs, unreachable_pub)]
 mod layer;
 mod visitor;
 
 pub use self::layer::*;
-
