@@ -1,10 +1,11 @@
-use chrono::{DateTime, Duration, Utc};
+#![allow(clippy::blacklisted_name)]
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{
     io,
     sync::{Mutex, TryLockError},
 };
+use time::OffsetDateTime;
 use tracing_stackdriver::Stackdriver;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 
@@ -31,7 +32,8 @@ impl<'a> io::Write for MockWriter<'a> {
 
 #[derive(Deserialize)]
 struct MockDefaultEvent {
-    time: DateTime<Utc>,
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    time: OffsetDateTime,
     target: String,
     severity: String,
 }
@@ -42,7 +44,7 @@ fn includes_correct_custom_fields() {
         static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
     }
 
-    let start = Utc::now();
+    let start = OffsetDateTime::now_utc();
     let make_writer = || MockWriter(&BUFFER);
     let stackdriver = Stackdriver::with_writer(make_writer);
     let subscriber = Registry::default().with(stackdriver);
@@ -61,9 +63,53 @@ fn includes_correct_custom_fields() {
     )
     .expect("Error converting test buffer to JSON");
 
-    assert!(output.time.signed_duration_since(start) > Duration::zero());
+    assert!(output.time > start);
     assert_eq!(output.target, "test target");
     assert_eq!(output.severity, "INFO");
+}
+
+#[test]
+fn includes_correct_timestamps() {
+    lazy_static! {
+        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    }
+
+    let make_writer = || MockWriter(&BUFFER);
+    let stackdriver = Stackdriver::with_writer(make_writer);
+    let subscriber = Registry::default().with(stackdriver);
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span = tracing::info_span!("test span", foo = "bar");
+        let _guard = span.enter();
+        tracing::info!(target: "first target", "some stackdriver message");
+
+        let first_output = serde_json::from_slice::<MockDefaultEvent>(
+            &BUFFER
+                .try_lock()
+                .expect("Couldn't get lock on test write target")
+                .to_vec(),
+        )
+        .expect("Error converting first test buffer to JSON");
+
+        {
+            BUFFER
+                .try_lock()
+                .expect("Couldn't get lock on test write target")
+                .clear();
+        }
+
+        tracing::info!(target: "second target", "some stackdriver message");
+
+        let second_output = serde_json::from_slice::<MockDefaultEvent>(
+            &BUFFER
+                .try_lock()
+                .expect("Couldn't get lock on test write target")
+                .to_vec(),
+        )
+        .expect("Error converting second test buffer to JSON");
+
+        assert!(first_output.time < second_output.time);
+    });
 }
 
 #[derive(Deserialize)]
