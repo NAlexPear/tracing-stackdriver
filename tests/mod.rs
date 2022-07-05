@@ -9,6 +9,25 @@ use time::OffsetDateTime;
 use tracing_stackdriver::Stackdriver;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 
+macro_rules! run_with_tracing {
+    (|| $expression:expr) => {{
+        lazy_static! {
+            static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
+        }
+
+        let make_writer = || MockWriter(&BUFFER);
+        let stackdriver = Stackdriver::with_writer(make_writer);
+        let subscriber = Registry::default().with(stackdriver);
+
+        tracing::subscriber::with_default(subscriber, || $expression);
+
+        &BUFFER
+            .try_lock()
+            .expect("Couldn't get lock on test write target")
+            .to_vec()
+    }};
+}
+
 struct MockWriter<'a>(&'a Mutex<Vec<u8>>);
 
 impl<'a> MockWriter<'a> {
@@ -30,7 +49,7 @@ impl<'a> io::Write for MockWriter<'a> {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 struct MockDefaultEvent {
     #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
     time: OffsetDateTime,
@@ -40,27 +59,13 @@ struct MockDefaultEvent {
 
 #[test]
 fn includes_correct_custom_fields() {
-    lazy_static! {
-        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
     let start = OffsetDateTime::now_utc();
-    let make_writer = || MockWriter(&BUFFER);
-    let stackdriver = Stackdriver::with_writer(make_writer);
-    let subscriber = Registry::default().with(stackdriver);
 
-    tracing::subscriber::with_default(subscriber, || {
+    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| {
         let span = tracing::info_span!("test span", foo = "bar");
         let _guard = span.enter();
         tracing::info!(target: "test target", "some stackdriver message");
-    });
-
-    let output = serde_json::from_slice::<MockDefaultEvent>(
-        &BUFFER
-            .try_lock()
-            .expect("Couldn't get lock on test write target")
-            .to_vec(),
-    )
+    }))
     .expect("Error converting test buffer to JSON");
 
     assert!(output.time > start);
@@ -70,46 +75,26 @@ fn includes_correct_custom_fields() {
 
 #[test]
 fn includes_correct_timestamps() {
-    lazy_static! {
-        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
-    let make_writer = || MockWriter(&BUFFER);
-    let stackdriver = Stackdriver::with_writer(make_writer);
-    let subscriber = Registry::default().with(stackdriver);
-
-    tracing::subscriber::with_default(subscriber, || {
+    let output = run_with_tracing!(|| {
         let span = tracing::info_span!("test span", foo = "bar");
         let _guard = span.enter();
         tracing::info!(target: "first target", "some stackdriver message");
-
-        let first_output = serde_json::from_slice::<MockDefaultEvent>(
-            &BUFFER
-                .try_lock()
-                .expect("Couldn't get lock on test write target")
-                .to_vec(),
-        )
-        .expect("Error converting first test buffer to JSON");
-
-        {
-            BUFFER
-                .try_lock()
-                .expect("Couldn't get lock on test write target")
-                .clear();
-        }
-
         tracing::info!(target: "second target", "some stackdriver message");
-
-        let second_output = serde_json::from_slice::<MockDefaultEvent>(
-            &BUFFER
-                .try_lock()
-                .expect("Couldn't get lock on test write target")
-                .to_vec(),
-        )
-        .expect("Error converting second test buffer to JSON");
-
-        assert!(first_output.time < second_output.time);
     });
+
+    let mut events = serde_json::Deserializer::from_slice(output).into_iter::<MockDefaultEvent>();
+
+    let first_event = events
+        .next()
+        .expect("Error logging first event")
+        .expect("Error converting test buffer to JSON");
+
+    let second_event = events
+        .next()
+        .expect("Error logging second event")
+        .expect("Error converting test buffer to JSON");
+
+    assert!(first_event.time < second_event.time);
 }
 
 #[derive(Deserialize)]
@@ -120,28 +105,14 @@ struct MockEventWithFields {
 
 #[test]
 fn includes_flattened_fields() {
-    lazy_static! {
-        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
     let baz = 123;
-    let make_writer = || MockWriter(&BUFFER);
-    let stackdriver = Stackdriver::with_writer(make_writer);
-    let subscriber = Registry::default().with(stackdriver);
 
-    tracing::subscriber::with_default(subscriber, || {
+    let output = serde_json::from_slice::<MockEventWithFields>(run_with_tracing!(|| {
         let span = tracing::info_span!("test span", foo = "bar");
         let _ = span.enter();
         tracing::info!(baz, "some stackdriver message");
-    });
-
-    let output = serde_json::from_slice::<MockEventWithFields>(
-        &BUFFER
-            .try_lock()
-            .expect("Couldn't get lock on test write target")
-            .to_vec(),
-    )
-    .expect("Error converting test buffer to JSON");
+    }))
+    .expect("Error converting first test buffer to JSON");
 
     assert_eq!(&output.baz, &baz);
     assert_eq!(&output.message, "some stackdriver message");
@@ -160,26 +131,11 @@ struct MockEventWithSpan {
 
 #[test]
 fn includes_span() {
-    lazy_static! {
-        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
-    let make_writer = || MockWriter(&BUFFER);
-    let stackdriver = Stackdriver::with_writer(make_writer);
-    let subscriber = Registry::default().with(stackdriver);
-
-    tracing::subscriber::with_default(subscriber, || {
+    let output = serde_json::from_slice::<MockEventWithSpan>(run_with_tracing!(|| {
         let span = tracing::info_span!("stackdriver_span", foo = "bar");
         let _guard = span.enter();
         tracing::info!("some stackdriver message");
-    });
-
-    let output = serde_json::from_slice::<MockEventWithSpan>(
-        &BUFFER
-            .try_lock()
-            .expect("Couldn't get lock on test write target")
-            .to_vec(),
-    )
+    }))
     .expect("Error converting test buffer to JSON");
 
     assert_eq!(output.span.name, "stackdriver_span");
@@ -202,10 +158,6 @@ struct MockHttpEvent {
 
 #[test]
 fn nests_http_request() {
-    lazy_static! {
-        static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
     let latency = "0.23s";
     let remote_ip = "192.168.1.1";
     let status = 200;
@@ -216,11 +168,7 @@ fn nests_http_request() {
         status,
     };
 
-    let make_writer = || MockWriter(&BUFFER);
-    let stackdriver = Stackdriver::with_writer(make_writer);
-    let subscriber = Registry::default().with(stackdriver);
-
-    tracing::subscriber::with_default(subscriber, || {
+    let output = serde_json::from_slice::<MockHttpEvent>(run_with_tracing!(|| {
         let span = tracing::info_span!("stackdriver_span");
         let _guard = span.enter();
         tracing::info!(
@@ -229,14 +177,7 @@ fn nests_http_request() {
             http_request.status = &status,
             "some stackdriver message"
         );
-    });
-
-    let output = serde_json::from_slice::<MockHttpEvent>(
-        &BUFFER
-            .try_lock()
-            .expect("Couldn't get lock on test write target")
-            .to_vec(),
-    )
+    }))
     .expect("Error converting test buffer to JSON");
 
     assert_eq!(&output.http_request, &mock_http_request);
