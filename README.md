@@ -77,3 +77,4 @@ fn handle_request(request: Request) {
 
 1. type-safe `http_request`s derived from Google's REST v2 spec
 2. distributing tracing data in [Cloud Trace](https://cloud.google.com/trace/docs) format
+3. support the logging API in addition to the logging agent/std{out,err}

@@ -93,6 +93,13 @@ where
             serde_json::Value::from(format!("{:?}", value)),
         );
     }
+
+    #[cfg(tracing_unstable)]
+    fn record_value(&mut self, field: &Field, value: valuable::Value<'_>) {
+        let value = serde_json::to_value(valuable_serde::Serializable::new(value)).unwrap();
+
+        self.values.insert(field.name(), value);
+    }
 }
 
 impl<'a, S> fmt::Debug for StackdriverEventVisitor<'a, S>
@@ -100,10 +107,10 @@ where
     S: SerializeMap,
 {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        formatter.write_fmt(format_args!(
-            "StackdriverEventVisitor {{ values: {:?} }}",
-            self.values
-        ))
+        formatter
+            .debug_struct("StackdriverEventVisitor")
+            .field("values", &self.values)
+            .finish()
     }
 }
 
@@ -177,14 +184,21 @@ impl<'a> Visit for StackdriverVisitor<'a> {
             serde_json::Value::from(format!("{:?}", value)),
         );
     }
+
+    #[cfg(tracing_unstable)]
+    fn record_value(&mut self, field: &Field, value: valuable::Value<'_>) {
+        let value = serde_json::to_value(valuable_serde::Serializable::new(value)).unwrap();
+
+        self.values.insert(field.name(), value);
+    }
 }
 
 impl<'a> fmt::Debug for StackdriverVisitor<'a> {
     fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        formatter.write_fmt(format_args!(
-            "StackdriverVisitor {{ values: {:?} }}",
-            self.values
-        ))
+        formatter
+            .debug_struct("StackdriverVisitor")
+            .field("values", &self.values)
+            .finish()
     }
 }
 
@@ -218,6 +232,7 @@ impl<'a> io::Write for WriteAdaptor<'a> {
 
 impl<'a> std::fmt::Debug for WriteAdaptor<'a> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        // FIXME: use the struct builders
         formatter.pad("WriteAdaptor { .. }")
     }
 }
