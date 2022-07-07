@@ -8,7 +8,7 @@ use std::{
 use time::OffsetDateTime;
 use tracing_stackdriver::Stackdriver;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 use valuable::Valuable;
 
 macro_rules! run_with_tracing {
@@ -63,16 +63,37 @@ struct MockDefaultEvent {
 fn includes_correct_custom_fields() {
     let start = OffsetDateTime::now_utc();
 
-    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| {
-        let span = tracing::info_span!("test span", foo = "bar");
-        let _guard = span.enter();
-        tracing::info!(target: "test target", "some stackdriver message");
-    }))
+    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(
+        || tracing::info!(target: "test target", "some stackdriver message")
+    ))
     .expect("Error converting test buffer to JSON");
 
     assert!(output.time > start);
     assert_eq!(output.target, "test target");
     assert_eq!(output.severity, "INFO");
+}
+
+#[test]
+fn handles_stringly_severity_override() {
+    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!(
+        severity = "notice",
+        "notice me, senpai!"
+    )))
+    .expect("Error converting test buffer to JSON");
+
+    assert_eq!(output.severity, "NOTICE");
+}
+
+#[cfg(all(tracing_unstable, feature = "valuable"))]
+#[test]
+fn handles_valuable_severity_override() {
+    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!(
+        severity = tracing_stackdriver::LogSeverity::Notice.as_value(),
+        "notice me, senpai!"
+    )))
+    .expect("Error converting test buffer to JSON");
+
+    assert_eq!(output.severity, "NOTICE");
 }
 
 #[test]
@@ -109,11 +130,9 @@ struct MockEventWithFields {
 fn includes_flattened_fields() {
     let baz = 123;
 
-    let output = serde_json::from_slice::<MockEventWithFields>(run_with_tracing!(|| {
-        let span = tracing::info_span!("test span", foo = "bar");
-        let _ = span.enter();
-        tracing::info!(baz, "some stackdriver message");
-    }))
+    let output = serde_json::from_slice::<MockEventWithFields>(run_with_tracing!(
+        || tracing::info!(baz, "some stackdriver message")
+    ))
     .expect("Error converting first test buffer to JSON");
 
     assert_eq!(&output.baz, &baz);
@@ -173,23 +192,19 @@ fn nests_http_request() {
         status,
     };
 
-    let output = serde_json::from_slice::<MockHttpEvent>(run_with_tracing!(|| {
-        let span = tracing::info_span!("stackdriver_span");
-        let _guard = span.enter();
-        tracing::info!(
-            http_request.request_method = &request_method,
-            http_request.latency = &latency,
-            http_request.remote_ip = &remote_ip,
-            http_request.status = &status,
-            "some stackdriver message"
-        );
-    }))
+    let output = serde_json::from_slice::<MockHttpEvent>(run_with_tracing!(|| tracing::info!(
+        http_request.request_method = &request_method,
+        http_request.latency = &latency,
+        http_request.remote_ip = &remote_ip,
+        http_request.status = &status,
+        "some stackdriver message"
+    )))
     .expect("Error converting test buffer to JSON");
 
     assert_eq!(&output.http_request, &mock_http_request);
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 #[test]
 fn validates_structured_http_requests() {
     let request_method = http::Method::GET;
@@ -225,21 +240,21 @@ fn validates_structured_http_requests() {
     assert_eq!(output.http_request.remote_ip, remote_ip.to_string());
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 #[derive(Debug, Deserialize, Valuable, PartialEq)]
 struct StructuredLog {
     foo: String,
     bar: std::collections::BTreeMap<String, u16>,
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MockStructuredEvent {
     structured_log: StructuredLog,
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 #[test]
 fn includes_valuable_structures() {
     let foo = "testing".to_string();

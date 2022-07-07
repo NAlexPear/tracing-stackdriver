@@ -1,4 +1,7 @@
-use crate::visitor::{StackdriverEventVisitor, StackdriverVisitor};
+use crate::{
+    google::LogSeverity,
+    visitor::{StackdriverEventVisitor, StackdriverVisitor},
+};
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Value;
 use std::{
@@ -10,7 +13,6 @@ use tracing_core::{
     span::{Attributes, Id},
     Event, Subscriber,
 };
-use tracing_serde::AsSerde;
 use tracing_subscriber::{
     field::{MakeVisitor, RecordFields, VisitOutput},
     fmt::{
@@ -66,11 +68,11 @@ where
         let time = OffsetDateTime::now_utc().format(&Rfc3339)?;
         let mut buffer: Vec<u8> = Default::default();
         let meta = event.metadata();
+        let severity = LogSeverity::from(meta.level());
         let mut serializer = serde_json::Serializer::new(&mut buffer);
         let mut map = serializer.serialize_map(None)?;
 
         map.serialize_entry("time", &time)?;
-        map.serialize_entry("severity", &meta.level().as_serde())?;
         map.serialize_entry("target", &meta.target())?;
 
         if let Some(span) = context.lookup_current() {
@@ -90,7 +92,8 @@ where
 
         // TODO: enable deeper structuring of keys and values across tracing
         // https://github.com/tokio-rs/tracing/issues/663
-        let mut visitor = StackdriverEventVisitor::new(map);
+        // https://github.com/tokio-rs/tracing/discussions/1906
+        let mut visitor = StackdriverEventVisitor::new(severity, map);
 
         event.record(&mut visitor);
 

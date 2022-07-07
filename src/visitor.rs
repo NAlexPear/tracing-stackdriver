@@ -1,3 +1,4 @@
+use crate::google::LogSeverity;
 use inflector::Inflector;
 use serde::ser::{SerializeMap, Serializer as _};
 use serde_json::Serializer;
@@ -12,6 +13,7 @@ use tracing_subscriber::field::{Visit, VisitFmt, VisitOutput};
 /// the EventVisitor implementation for Stackdriver
 pub(crate) struct StackdriverEventVisitor<'a, S: SerializeMap> {
     values: BTreeMap<&'a str, serde_json::Value>,
+    severity: LogSeverity,
     serializer: S,
 }
 
@@ -20,9 +22,10 @@ where
     S: SerializeMap,
 {
     /// Returns a new default visitor using the provided writer
-    pub(crate) fn new(serializer: S) -> Self {
+    pub(crate) fn new(severity: LogSeverity, serializer: S) -> Self {
         Self {
             values: BTreeMap::new(),
+            severity,
             serializer,
         }
     }
@@ -34,6 +37,14 @@ where
 {
     fn finish(mut self) -> fmt::Result {
         let inner = || {
+            let severity = self
+                .values
+                .remove("severity")
+                .map(LogSeverity::from)
+                .unwrap_or(self.severity);
+
+            self.serializer.serialize_entry("severity", &severity)?;
+
             let mut http_request = BTreeMap::new();
 
             for (key, value) in self.values {
@@ -94,7 +105,7 @@ where
         );
     }
 
-    #[cfg(tracing_unstable)]
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
     fn record_value(&mut self, field: &Field, value: valuable::Value<'_>) {
         let value = serde_json::to_value(valuable_serde::Serializable::new(value)).unwrap();
 
@@ -185,7 +196,7 @@ impl<'a> Visit for StackdriverVisitor<'a> {
         );
     }
 
-    #[cfg(tracing_unstable)]
+    #[cfg(all(tracing_unstable, feature = "valuable"))]
     fn record_value(&mut self, field: &Field, value: valuable::Value<'_>) {
         let value = serde_json::to_value(valuable_serde::Serializable::new(value)).unwrap();
 

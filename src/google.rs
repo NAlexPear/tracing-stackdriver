@@ -1,38 +1,91 @@
 use http::{method::Method, status::StatusCode};
-use std::{collections::BTreeMap, net::IpAddr, time::Duration};
+use serde::Serialize;
+use std::{convert::Infallible, net::IpAddr, str::FromStr, time::Duration};
+use tracing_core::Level;
 use url::Url;
 
-// TODO:
-// 1. define the entire "simplified JSON log entry" for conversion into a real LogEntry
-// 2. define a conversion from JsonValues to the simplified log entry
-// 3. implement serialization for the simplified log entry
-// 4. expose relevant helper structs, too
-// 5. come up with a better module name
-
-/// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry
-struct LogEntry {
-    http_request: Option<HttpRequest>,
-    labels: BTreeMap<String, String>,
-    message: Option<String>,
-    severity: LogSeverity,
-    span_id: Option<String>,
-}
-
-/// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity
-enum LogSeverity {
+/// The severity of the event described in a log entry, expressed as one of the standard severity levels below
+/// <https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity>
+#[cfg_attr(
+    all(tracing_unstable, feature = "valuable"),
+    derive(valuable::Valuable)
+)]
+#[derive(Default, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum LogSeverity {
+    /// Log entry has no assigned severity level
+    #[default]
     Default,
+    /// Debug or trace information
     Debug,
+    /// Routine information, such as ongoing status or performance
     Info,
+    /// Normal but significant events, such as start up, shut down, or a configuration change
     Notice,
+    /// Warning events might cause problems
     Warning,
+    /// Error events are likely to cause problems
     Error,
+    /// Critical events cause more severe problems or outages
     Critical,
+    /// A person must take an action immediately
     Alert,
+    /// One or more systems are unusable
     Emergency,
 }
 
+impl From<&Level> for LogSeverity {
+    fn from(level: &Level) -> Self {
+        match level {
+            &Level::DEBUG | &Level::TRACE => Self::Debug,
+            &Level::INFO => Self::Info,
+            &Level::WARN => Self::Warning,
+            &Level::ERROR => Self::Error,
+        }
+    }
+}
+
+impl FromStr for LogSeverity {
+    type Err = Infallible;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let severity = match string.to_lowercase().as_str() {
+            "debug" | "trace" => Self::Debug,
+            "info" => Self::Info,
+            "notice" => Self::Notice,
+            "warn" | "warning" => Self::Warning,
+            "error" => Self::Error,
+            "critical" => Self::Critical,
+            "alert" => Self::Alert,
+            "emergency" => Self::Emergency,
+            _ => Self::Default,
+        };
+
+        Ok(severity)
+    }
+}
+
+impl From<serde_json::Value> for LogSeverity {
+    fn from(json: serde_json::Value) -> Self {
+        // handle simple string inputs
+        if let Some(str) = json.as_str() {
+            return Self::from_str(str).unwrap_or(Self::Default);
+        }
+
+        // handle wacky object encoding of Valuable enums
+        #[cfg(all(tracing_unstable, feature = "valuable"))]
+        if let Some(map) = json.as_object() {
+            if let Some(key) = map.keys().next() {
+                return Self::from_str(key).unwrap_or(Self::Default);
+            }
+        }
+
+        Self::Default
+    }
+}
+
 /// Typechecked HttpRequest structure for stucturally logging information about a request
-/// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest
+/// <https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest>
 #[derive(Default)]
 pub struct HttpRequest {
     /// Valid HTTP Method for the request (e.g. GET, POST, etc)
@@ -74,7 +127,7 @@ impl HttpRequest {
     }
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 static HTTP_REQUEST_FIELDS: &[valuable::NamedField<'static>] = &[
     valuable::NamedField::new("requestMethod"),
     valuable::NamedField::new("requestUrl"),
@@ -93,7 +146,7 @@ static HTTP_REQUEST_FIELDS: &[valuable::NamedField<'static>] = &[
     valuable::NamedField::new("protocol"),
 ];
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 impl valuable::Valuable for HttpRequest {
     fn as_value(&self) -> valuable::Value<'_> {
         valuable::Value::Structable(self)
@@ -149,7 +202,7 @@ impl valuable::Valuable for HttpRequest {
     }
 }
 
-#[cfg(tracing_unstable)]
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 impl valuable::Structable for HttpRequest {
     fn definition(&self) -> valuable::StructDef<'_> {
         valuable::StructDef::new_dynamic("HttpRequest", valuable::Fields::Named(&[]))
