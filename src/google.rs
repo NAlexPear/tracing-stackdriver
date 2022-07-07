@@ -1,16 +1,14 @@
-use http::{method::Method, status::StatusCode};
 use serde::Serialize;
-use std::{convert::Infallible, net::IpAddr, str::FromStr, time::Duration};
+use std::{convert::Infallible, fmt, str::FromStr};
 use tracing_core::Level;
-use url::Url;
 
-/// The severity of the event described in a log entry, expressed as one of the standard severity levels below
-/// <https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity>
+/// The severity of the event described in a log entry, expressed as standard severity levels.
+/// [See Google's LogSeverity docs here](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity).
 #[cfg_attr(
     all(tracing_unstable, feature = "valuable"),
     derive(valuable::Valuable)
 )]
-#[derive(Default, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum LogSeverity {
     /// Log entry has no assigned severity level
@@ -32,6 +30,24 @@ pub enum LogSeverity {
     Alert,
     /// One or more systems are unusable
     Emergency,
+}
+
+impl fmt::Display for LogSeverity {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let output = match self {
+            Self::Default => "DEFAULT",
+            Self::Debug => "DEBUG",
+            Self::Info => "INFO",
+            Self::Notice => "NOTICE",
+            Self::Warning => "WARNING",
+            Self::Error => "ERROR",
+            Self::Critical => "CRITICAL",
+            Self::Alert => "ALERT",
+            Self::Emergency => "EMERGENCY",
+        };
+
+        formatter.write_str(output)
+    }
 }
 
 impl From<&Level> for LogSeverity {
@@ -84,30 +100,31 @@ impl From<serde_json::Value> for LogSeverity {
     }
 }
 
-/// Typechecked HttpRequest structure for stucturally logging information about a request
-/// <https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest>
+/// Typechecked HttpRequest structure for stucturally logging information about a request.
+/// [See Google's HttpRequest docs here](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest).
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 #[derive(Default)]
 pub struct HttpRequest {
     /// Valid HTTP Method for the request (e.g. GET, POST, etc)
-    pub request_method: Option<Method>,
+    pub request_method: Option<http::Method>,
     /// URL from the HTTP request
-    pub request_url: Option<Url>,
+    pub request_url: Option<url::Url>,
     /// Size of the HTTP request in bytes
     pub request_size: Option<u32>,
     /// Size of the HTTP response in bytes
     pub response_size: Option<u32>,
     /// Valid HTTP StatusCode for the response
-    pub status: Option<StatusCode>,
+    pub status: Option<http::StatusCode>,
     /// User Agent string of the request
     pub user_agent: Option<String>,
     /// IP address of the client that issued the request
-    pub remote_ip: Option<IpAddr>,
+    pub remote_ip: Option<std::net::IpAddr>,
     /// IP address of the server that the request was sent to
-    pub server_ip: Option<IpAddr>,
+    pub server_ip: Option<std::net::IpAddr>,
     /// Referer URL of the request, as defined in HTTP/1.1 Header Field Definitions
-    pub referer: Option<Url>,
+    pub referer: Option<url::Url>,
     /// Processing latency on the server, from the time the request was received until the response was sent
-    pub latency: Option<Duration>,
+    pub latency: Option<std::time::Duration>,
     /// Whether or not a cache lookup was attempted
     pub cache_lookup: Option<bool>,
     /// Whether or not an entity was served from cache (with or without validation)
@@ -120,6 +137,7 @@ pub struct HttpRequest {
     pub protocol: Option<String>,
 }
 
+#[cfg(all(tracing_unstable, feature = "valuable"))]
 impl HttpRequest {
     /// Generate a new log-able HttpRequest structured log entry
     pub fn new() -> Self {

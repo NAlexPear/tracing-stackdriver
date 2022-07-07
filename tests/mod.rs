@@ -6,7 +6,7 @@ use std::{
     sync::{Mutex, TryLockError},
 };
 use time::OffsetDateTime;
-use tracing_stackdriver::Stackdriver;
+use tracing_stackdriver::{LogSeverity, Stackdriver};
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 #[cfg(all(tracing_unstable, feature = "valuable"))]
 use valuable::Valuable;
@@ -84,11 +84,22 @@ fn handles_stringly_severity_override() {
     assert_eq!(output.severity, "NOTICE");
 }
 
+#[test]
+fn handles_enum_severity_override() {
+    let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!(
+        severity = %LogSeverity::Notice,
+        "notice me, senpai!"
+    )))
+    .expect("Error converting test buffer to JSON");
+
+    assert_eq!(output.severity, "NOTICE");
+}
+
 #[cfg(all(tracing_unstable, feature = "valuable"))]
 #[test]
 fn handles_valuable_severity_override() {
     let output = serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!(
-        severity = tracing_stackdriver::LogSeverity::Notice.as_value(),
+        severity = LogSeverity::Notice.as_value(),
         "notice me, senpai!"
     )))
     .expect("Error converting test buffer to JSON");

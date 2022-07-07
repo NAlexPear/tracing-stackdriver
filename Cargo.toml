@@ -23,8 +23,14 @@ tracing-core = "0.1.28"
 tracing-futures = "0.2.5"
 tracing-serde = "0.1.3"
 thiserror = "1.0.31"
-http = "0.2.8"
-url = "2.2.2"
+
+[dependencies.http]
+optional = true
+version = "0.2.8"
+
+[dependencies.url]
+optional = true
+version = "2.2.2"
 
 [dependencies.serde]
 features = ["derive"]
@@ -56,4 +62,4 @@ features = ["serde", "serde-well-known"]
 version = "0.3.11"
 
 [features]
-valuable = ["dep:valuable", "valuable-serde"]
+valuable = ["dep:valuable", "valuable-serde", "http", "url"]
