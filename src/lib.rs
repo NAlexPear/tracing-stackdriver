@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs, unreachable_pub)]
 #![allow(clippy::needless_doctest_main)]
 /*!

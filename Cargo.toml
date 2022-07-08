@@ -12,6 +12,10 @@ keywords = ["tracing", "stackdriver", "logging"]
 [badges.maintenance]
 status = "actively-developed"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lib]
 doctest = false
 
