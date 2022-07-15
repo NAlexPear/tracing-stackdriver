@@ -42,6 +42,7 @@ version = "1.0.138"
 
 [dependencies.time]
 default-features = false
+features = ["formatting"]
 version = "0.3.11"
 
 [dependencies.tracing-subscriber]
@@ -62,7 +63,7 @@ lazy_static = "1.4.0"
 tracing = "0.1.35"
 
 [dev-dependencies.time]
-features = ["serde", "serde-well-known"]
+features = ["serde", "serde-well-known", "formatting"]
 version = "0.3.11"
 
 [features]
