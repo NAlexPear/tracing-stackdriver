@@ -20,12 +20,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 doctest = false
 
 [dependencies]
-futures = "0.3.21"
 Inflector = "0.11.4"
 serde_json = "1.0.82"
 tracing-core = "0.1.28"
-tracing-futures = "0.2.5"
-tracing-serde = "0.1.3"
 thiserror = "1.0.31"
 
 [dependencies.http]
@@ -38,7 +35,7 @@ version = "2.2.2"
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.138"
+version = "1.0.140"
 
 [dependencies.time]
 default-features = false
@@ -47,7 +44,7 @@ version = "0.3.11"
 
 [dependencies.tracing-subscriber]
 features = ["json"]
-version = "0.3.14"
+version = "0.3.15"
 
 [dependencies.valuable]
 optional = true
