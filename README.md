@@ -22,7 +22,7 @@ use tracing_subscriber::{layer::SubscriberExt, Registry};
 use tracing_stackdriver::Stackdriver;
 
 fn main() {
-    let stackdriver = Stackdriver::default(); // writes to std::io::Stdout
+    let stackdriver = Stackdriver::layer(); // writes to std::io::Stdout
     let subscriber = Registry::default().with(stackdriver);
 
     tracing::subscriber::set_global_default(subscriber).expect("Could not set up global logger");
@@ -37,7 +37,7 @@ use tracing_stackdriver::Stackdriver;
 
 fn main() {
     let make_writer = || std::io::Stderr;
-    let stackdriver = Stackdriver::with_writer(make_writer); // writes to std::io::Stderr
+    let stackdriver = Stackdriver::layer().with_writer(make_writer); // writes to std::io::Stderr
     let subscriber = Registry::default().with(stackdriver);
 
     tracing::subscriber::set_global_default(subscriber).expect("Could not set up global logger");

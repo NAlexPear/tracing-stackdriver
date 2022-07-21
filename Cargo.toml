@@ -1,8 +1,8 @@
 [package]
 name = "tracing-stackdriver"
-version = "0.4.2"
+version = "0.5.0"
 authors = ["Alex Pearson <alex@alexpear.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/NAlexPear/tracing-stackdriver"

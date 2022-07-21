@@ -2,6 +2,7 @@
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{
+    fmt::Debug,
     io,
     sync::{Mutex, TryLockError},
 };
@@ -18,7 +19,7 @@ macro_rules! run_with_tracing {
         }
 
         let make_writer = || MockWriter(&BUFFER);
-        let stackdriver = Stackdriver::with_writer(make_writer);
+        let stackdriver = Stackdriver::layer().with_writer(make_writer);
         let subscriber = Registry::default().with(stackdriver);
 
         tracing::subscriber::with_default(subscriber, || $expression);
@@ -49,6 +50,30 @@ impl<'a> io::Write for MockWriter<'a> {
     fn flush(&mut self) -> io::Result<()> {
         self.0.try_lock().map_err(Self::map_err)?.flush()
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct MockSpan {
+    name: String,
+    foo: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct MockEventWithSpan {
+    span: MockSpan,
+}
+
+#[test]
+fn includes_span() {
+    let output = serde_json::from_slice::<MockEventWithSpan>(run_with_tracing!(|| {
+        let span = tracing::info_span!("stackdriver_span", foo = "bar");
+        let _guard = span.enter();
+        tracing::info!("some stackdriver message");
+    }))
+    .expect("Error converting test buffer to JSON");
+
+    assert_eq!(output.span.name, "stackdriver_span");
+    assert_eq!(output.span.foo, "bar");
 }
 
 #[derive(Clone, Deserialize)]
@@ -148,30 +173,6 @@ fn includes_flattened_fields() {
 
     assert_eq!(&output.baz, &baz);
     assert_eq!(&output.message, "some stackdriver message");
-}
-
-#[derive(Deserialize)]
-struct MockSpan {
-    name: String,
-    foo: String,
-}
-
-#[derive(Deserialize)]
-struct MockEventWithSpan {
-    span: MockSpan,
-}
-
-#[test]
-fn includes_span() {
-    let output = serde_json::from_slice::<MockEventWithSpan>(run_with_tracing!(|| {
-        let span = tracing::info_span!("stackdriver_span", foo = "bar");
-        let _guard = span.enter();
-        tracing::info!("some stackdriver message");
-    }))
-    .expect("Error converting test buffer to JSON");
-
-    assert_eq!(output.span.name, "stackdriver_span");
-    assert_eq!(output.span.foo, "bar");
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
