@@ -29,6 +29,10 @@ thiserror = "1.0.31"
 optional = true
 version = "0.2.8"
 
+[dependencies.opentelemetry]
+version = "0.17.0"
+optional = true
+
 [dependencies.url]
 optional = true
 version = "2.2.2"
@@ -41,6 +45,10 @@ version = "1.0.140"
 default-features = false
 features = ["formatting"]
 version = "0.3.11"
+
+[dependencies.tracing-opentelemetry]
+version = "0.17.4"
+optional = true
 
 [dependencies.tracing-subscriber]
 features = ["json"]
@@ -65,3 +73,8 @@ version = "0.3.11"
 
 [features]
 valuable = ["dep:valuable", "valuable-serde", "http", "url"]
+
+opentelemetry = [
+    "dep:opentelemetry",
+    "tracing-opentelemetry"
+]
