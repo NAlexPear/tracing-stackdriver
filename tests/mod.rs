@@ -1,16 +1,14 @@
 #![allow(clippy::blacklisted_name)]
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use std::{
-    fmt::Debug,
-    io,
-    sync::{Mutex, TryLockError},
-};
+use std::{fmt::Debug, sync::Mutex};
 use time::OffsetDateTime;
 use tracing_stackdriver::{LogSeverity, Stackdriver};
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 #[cfg(all(tracing_unstable, feature = "valuable"))]
 use valuable::Valuable;
+
+mod common;
 
 macro_rules! run_with_tracing {
     (|| $expression:expr) => {{
@@ -18,7 +16,7 @@ macro_rules! run_with_tracing {
             static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
         }
 
-        let make_writer = || MockWriter(&BUFFER);
+        let make_writer = || crate::common::MockWriter(&BUFFER);
         let stackdriver = Stackdriver::layer().with_writer(make_writer);
         let subscriber = Registry::default().with(stackdriver);
 
@@ -29,27 +27,6 @@ macro_rules! run_with_tracing {
             .expect("Couldn't get lock on test write target")
             .to_vec()
     }};
-}
-
-struct MockWriter<'a>(&'a Mutex<Vec<u8>>);
-
-impl<'a> MockWriter<'a> {
-    fn map_err<G>(error: TryLockError<G>) -> io::Error {
-        match error {
-            TryLockError::WouldBlock => io::Error::from(io::ErrorKind::WouldBlock),
-            TryLockError::Poisoned(_) => io::Error::from(io::ErrorKind::Other),
-        }
-    }
-}
-
-impl<'a> io::Write for MockWriter<'a> {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        self.0.try_lock().map_err(Self::map_err)?.write(buffer)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.try_lock().map_err(Self::map_err)?.flush()
-    }
 }
 
 #[derive(Debug, Deserialize)]

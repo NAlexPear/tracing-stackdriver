@@ -12,6 +12,7 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 5. automatic nesting of `http_request.`-prefixed event fields
 6. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
 7. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
+8. [OpenTelemetry](https://opentelemetry.io) integration
 
 ### Examples
 
@@ -151,6 +152,24 @@ fn handle_request(request: Request) {
   //   "message": "Request received"
   // }
 }
+```
+
+#### With OpenTelemetry integration:
+
+`tracing_stackdriver` supports integration with [OpenTelemetry](https://opentelemetry.io) via [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) and outputs [special Cloud Logging fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields) for trace sampling and log correlation.
+
+To enable OpenTelemetry integration, you need to
+1. use the `opentelemetry` feature flag, and
+2. provide `StackdriverLayer` with your GCP project ID, and
+3. add a [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) layer to the subscriber.
+```rust
+let stackdriver = tracing_stackdriver::layer()
+    .with_project_id("my_gcp_project_id".into());
+let subscriber = tracing_subscriber::Registry::default()
+    // You may want to configure the `tracing_opentelemetry` layer to suit your needs.
+    // See `tracing_opentelemetry`'s doc for details.
+    .with(tracing_opentelemetry::layer())
+    .with(stackdriver);
 ```
 
 #### Roadmap:
