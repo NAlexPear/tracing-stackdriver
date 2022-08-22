@@ -102,8 +102,8 @@ impl From<serde_json::Value> for LogSeverity {
 
 /// Typechecked HttpRequest structure for stucturally logging information about a request.
 /// [See Google's HttpRequest docs here](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#HttpRequest).
-#[cfg_attr(doc, doc(cfg(feature = "valuable")))]
-#[cfg(any(doc, all(tracing_unstable, feature = "valuable")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "valuable")))]
+#[cfg(any(docsrs, all(tracing_unstable, feature = "valuable")))]
 #[derive(Default)]
 pub struct HttpRequest {
     /// Valid HTTP Method for the request (e.g. GET, POST, etc)
@@ -138,8 +138,8 @@ pub struct HttpRequest {
     pub protocol: Option<String>,
 }
 
-#[cfg_attr(doc, doc(cfg(feature = "valuable")))]
-#[cfg(any(doc, all(tracing_unstable, feature = "valuable")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "valuable")))]
+#[cfg(any(docsrs, all(tracing_unstable, feature = "valuable")))]
 impl HttpRequest {
     /// Generate a new log-able HttpRequest structured log entry
     pub fn new() -> Self {
@@ -166,8 +166,8 @@ static HTTP_REQUEST_FIELDS: &[valuable::NamedField<'static>] = &[
     valuable::NamedField::new("protocol"),
 ];
 
-#[cfg_attr(doc, doc(cfg(feature = "valuable")))]
-#[cfg(any(doc, all(tracing_unstable, feature = "valuable")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "valuable")))]
+#[cfg(any(docsrs, all(tracing_unstable, feature = "valuable")))]
 impl valuable::Valuable for HttpRequest {
     fn as_value(&self) -> valuable::Value<'_> {
         valuable::Value::Structable(self)
@@ -223,8 +223,8 @@ impl valuable::Valuable for HttpRequest {
     }
 }
 
-#[cfg_attr(doc, doc(cfg(feature = "valuable")))]
-#[cfg(any(doc, all(tracing_unstable, feature = "valuable")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "valuable")))]
+#[cfg(any(docsrs, all(tracing_unstable, feature = "valuable")))]
 impl valuable::Structable for HttpRequest {
     fn definition(&self) -> valuable::StructDef<'_> {
         valuable::StructDef::new_dynamic("HttpRequest", valuable::Fields::Named(&[]))
