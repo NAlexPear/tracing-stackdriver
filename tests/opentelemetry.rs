@@ -1,11 +1,14 @@
 #![cfg(feature = "opentelemetry")]
-
 use lazy_static::lazy_static;
-use serde::Deserialize;
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+use serde::{de::Error, Deserialize, Deserializer};
 use std::{fmt::Debug, sync::Mutex};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 
-mod common;
+mod writer;
+
+static PROJECT_ID: &str = "my_project_123";
 
 macro_rules! run_with_tracing {
     (|| $expression:expr) => {{
@@ -13,15 +16,28 @@ macro_rules! run_with_tracing {
             static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
         }
 
-        let make_writer = || crate::common::MockWriter(&BUFFER);
+        let make_writer = || writer::MockWriter(&BUFFER);
+
         let stackdriver = tracing_stackdriver::layer()
             .with_writer(make_writer)
-            .with_project_id("my_project_123".into());
-        let subscriber = tracing_subscriber::Registry::default()
-            .with(tracing_opentelemetry::layer())
+            .with_project_id(PROJECT_ID.into());
+
+        let subscriber = tracing_subscriber::registry()
+            .with(
+                tracing_opentelemetry::layer()
+                    .with_location(false)
+                    .with_threads(false)
+                    .with_tracked_inactivity(false),
+            )
             .with(stackdriver);
 
-        tracing::subscriber::with_default(subscriber, || $expression);
+        tracing::subscriber::with_default(subscriber, || {
+            let parent = opentelemetry::Context::new();
+            let root_span = tracing::info_span!("root_span");
+            root_span.set_parent(parent);
+            let _root_span = root_span.enter();
+            $expression
+        });
 
         &BUFFER
             .try_lock()
@@ -32,85 +48,71 @@ macro_rules! run_with_tracing {
 
 #[derive(Debug, Deserialize)]
 struct MockEventWithCloudTraceFields {
-    #[serde(rename = "logging.googleapis.com/spanId")]
-    span_id: Option<String>,
+    #[serde(
+        rename = "logging.googleapis.com/spanId",
+        deserialize_with = "from_hex"
+    )]
+    span_id: SpanId,
     #[serde(rename = "logging.googleapis.com/trace")]
-    trace_id: Option<String>,
-    #[serde(rename = "logging.googleapis.com/trace_sampled")]
-    trace_sampled: Option<bool>,
+    trace_id: String,
+    #[serde(rename = "logging.googleapis.com/trace_sampled", default)]
+    trace_sampled: bool,
+}
+
+fn from_hex<'de, D>(deserializer: D) -> Result<SpanId, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let hex: &str = Deserialize::deserialize(deserializer)?;
+    SpanId::from_hex(hex).map_err(D::Error::custom)
 }
 
 #[test]
 fn includes_cloud_trace_fields() {
-    use opentelemetry::trace::{
-        SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
-    };
+    let raw = run_with_tracing!(|| tracing::info!("Should have cloud trace fields"));
 
-    use tracing_opentelemetry::OpenTelemetrySpanExt;
-    let output = run_with_tracing!(|| {
-        let cx = opentelemetry::Context::new().with_remote_span_context(SpanContext::new(
-            TraceId::from_hex("0af7651916cd43dd8448eb211c80319c").unwrap(),
-            SpanId::from_hex("b7ad6b7169203331").unwrap(),
-            TraceFlags::SAMPLED,
-            true,
-            TraceState::from_key_value([("", ""); 0]).unwrap(),
-        ));
-        let root_span = tracing::info_span!("root_span");
-        root_span.set_parent(cx);
-        root_span.in_scope(|| {
-            tracing::info!("Should have cloud trace fields");
-        });
-    });
-
-    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(output)
+    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(raw)
         .expect("Error converting test buffer to JSON");
 
-    assert!(matches!(
-        output.span_id.as_deref().map(SpanId::from_hex),
-        Some(Ok(_))
-    ));
-    assert_eq!(
-        output.trace_id.as_deref(),
-        Some("projects/my_project_123/traces/0af7651916cd43dd8448eb211c80319c")
-    );
-    assert_eq!(output.trace_sampled, Some(true))
+    assert_ne!(output.span_id.to_string(), "0000000000000000");
+    assert!(output
+        .trace_id
+        .starts_with(&format!("projects/{PROJECT_ID}/traces/")));
+    assert!(!output.trace_sampled);
 }
 
 #[test]
-fn includes_cloud_trace_fields_in_nested_span() {
-    use opentelemetry::trace::{
-        SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState,
-    };
-    use tracing_opentelemetry::OpenTelemetrySpanExt;
+fn includes_explicit_opentelemetry_context_fields() {
+    let span_id = SpanId::from_hex("b7ad6b7169203331").expect("Error converting hex to SpanId");
+    let trace_id = TraceId::from_hex("0af7651916cd43dd8448eb211c80319c")
+        .expect("Error converting hex to TraceId");
 
-    let output = run_with_tracing!(|| {
-        let cx = opentelemetry::Context::new().with_remote_span_context(SpanContext::new(
-            TraceId::from_hex("0af7651916cd43dd8448eb211c80319c").unwrap(),
-            SpanId::from_hex("b7ad6b7169203331").unwrap(),
+    let raw = run_with_tracing!(|| {
+        let parent = opentelemetry::Context::new().with_remote_span_context(SpanContext::new(
+            trace_id,
+            span_id,
             TraceFlags::default(),
             true,
             TraceState::from_key_value([("", ""); 0]).unwrap(),
         ));
+
         let root_span = tracing::info_span!("root_span");
-        root_span.set_parent(cx);
+        root_span.set_parent(parent);
         root_span.in_scope(|| {
             let inner_span = tracing::info_span!("inner_span");
-            inner_span.in_scope(|| {
-                tracing::info!("Should have cloud trace fields");
-            });
+            inner_span.in_scope(|| tracing::info!("Should have cloud trace fields"));
         })
     });
 
-    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(output)
+    println!("nested output -> {}", String::from_utf8_lossy(raw));
+
+    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(raw)
         .expect("Error converting test buffer to JSON");
 
-    assert!(matches!(
-        output.span_id.as_deref().map(SpanId::from_hex),
-        Some(Ok(_))
-    ));
+    assert_eq!(output.span_id, span_id, "Spans are not the same");
     assert_eq!(
-        output.trace_id.as_deref(),
-        Some("projects/my_project_123/traces/0af7651916cd43dd8448eb211c80319c")
+        output.trace_id,
+        format!("projects/{PROJECT_ID}/traces/{trace_id}")
     );
-    assert!(!matches!(output.trace_sampled, Some(true)))
+    assert!(output.trace_sampled)
 }

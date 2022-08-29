@@ -5,8 +5,8 @@ use std::{collections::BTreeMap, fmt};
 use tracing_core::Field;
 use tracing_subscriber::field::{Visit, VisitOutput};
 
-/// the EventVisitor implementation for Stackdriver
-pub(crate) struct StackdriverEventVisitor<'a, S>
+/// Visitor for Stackdriver events that formats custom fields
+pub(crate) struct Visitor<'a, S>
 where
     S: SerializeMap,
 {
@@ -15,7 +15,7 @@ where
     serializer: S,
 }
 
-impl<'a, S> StackdriverEventVisitor<'a, S>
+impl<'a, S> Visitor<'a, S>
 where
     S: SerializeMap,
 {
@@ -29,7 +29,7 @@ where
     }
 }
 
-impl<'a, S> VisitOutput<fmt::Result> for StackdriverEventVisitor<'a, S>
+impl<'a, S> VisitOutput<fmt::Result> for Visitor<'a, S>
 where
     S: SerializeMap,
 {
@@ -72,7 +72,7 @@ where
     }
 }
 
-impl<'a, S> Visit for StackdriverEventVisitor<'a, S>
+impl<'a, S> Visit for Visitor<'a, S>
 where
     S: SerializeMap,
 {
@@ -111,13 +111,13 @@ where
     }
 }
 
-impl<'a, S> fmt::Debug for StackdriverEventVisitor<'a, S>
+impl<'a, S> fmt::Debug for Visitor<'a, S>
 where
     S: SerializeMap,
 {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter
-            .debug_struct("StackdriverEventVisitor")
+            .debug_struct("Visitor")
             .field("values", &self.values)
             .finish()
     }

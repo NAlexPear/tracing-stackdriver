@@ -156,8 +156,10 @@ fn handle_request(request: Request) {
 }
 ```
 */
+mod event_formatter;
 mod google;
 mod layer;
+mod serializers;
 mod visitor;
 mod writer;
 
