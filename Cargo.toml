@@ -21,9 +21,9 @@ doctest = false
 
 [dependencies]
 Inflector = "0.11.4"
-serde_json = "1.0.82"
+serde_json = "1.0.87"
 tracing-core = "0.1.28"
-thiserror = "1.0.31"
+thiserror = "1.0.37"
 
 [dependencies.http]
 optional = true
@@ -35,12 +35,12 @@ optional = true
 
 [dependencies.serde]
 features = ["derive"]
-version = "1.0.140"
+version = "1.0.147"
 
 [dependencies.time]
 default-features = false
 features = ["formatting"]
-version = "0.3.11"
+version = "0.3.17"
 
 [dependencies.tracing-opentelemetry]
 version = "0.18.0"
@@ -52,7 +52,7 @@ version = "0.3.15"
 
 [dependencies.url]
 optional = true
-version = "2.2.2"
+version = "2.3.1"
 
 [dependencies.valuable]
 optional = true
@@ -65,12 +65,12 @@ version = "0.1.0"
 
 [dev-dependencies]
 lazy_static = "1.4.0"
-tracing = "0.1.35"
+tracing = "0.1.37"
 rand = "0.8.5"
 
 [dev-dependencies.time]
 features = ["serde", "serde-well-known", "formatting"]
-version = "0.3.11"
+version = "0.3.17"
 
 [dev-dependencies.opentelemetry]
 features = ["testing"]
