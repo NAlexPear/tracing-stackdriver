@@ -12,7 +12,7 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 5. automatic nesting of `http_request.`-prefixed event fields
 6. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
 7. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
-8. [OpenTelemetry](https://opentelemetry.io) integration
+8. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
 
 ### Examples
 
@@ -20,10 +20,9 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 
 ```rust
 use tracing_subscriber::{layer::SubscriberExt, Registry};
-use tracing_stackdriver::Stackdriver;
 
 fn main() {
-    let stackdriver = Stackdriver::layer(); // writes to std::io::Stdout
+    let stackdriver = tracing_stackdriver::layer(); // writes to std::io::Stdout
     let subscriber = Registry::default().with(stackdriver);
 
     tracing::subscriber::set_global_default(subscriber).expect("Could not set up global logger");
@@ -34,11 +33,10 @@ fn main() {
 
 ```rust
 use tracing_subscriber::{layer::SubscriberExt, Registry};
-use tracing_stackdriver::Stackdriver;
 
 fn main() {
     let make_writer = || std::io::Stderr;
-    let stackdriver = Stackdriver::layer().with_writer(make_writer); // writes to std::io::Stderr
+    let stackdriver = tracing_stackdriver::layer().with_writer(make_writer); // writes to std::io::Stderr
     let subscriber = Registry::default().with(stackdriver);
 
     tracing::subscriber::set_global_default(subscriber).expect("Could not set up global logger");
@@ -55,25 +53,25 @@ See all available fields [here](https://cloud.google.com/logging/docs/reference/
 use hyper::Request;
 
 fn handle_request(request: Request) {
-  let method = &request.method();
-  let uri = &request.uri();
+    let method = &request.method();
+    let uri = &request.uri();
 
-  tracing::info!(
-    http_request.request_method = %method,
-    http_request.request_url = %uri,
-    "Request received"
-  );
+    tracing::info!(
+      http_request.request_method = %method,
+      http_request.request_url = %uri,
+      "Request received"
+    );
 
-  // jsonPayload formatted as:
-  // {
-  //   "time": "some-timestamp"
-  //   "severity": "INFO",
-  //   "httpRequest": {
-  //     "requestMethod": "GET",
-  //     "requestUrl": "/some/url/from/request"
-  //    },
-  //   "message": "Request received"
-  // }
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "severity": "INFO",
+    //   "httpRequest": {
+    //     "requestMethod": "GET",
+    //     "requestUrl": "/some/url/from/request"
+    //    },
+    //   "message": "Request received"
+    // }
 }
 ```
 
@@ -89,12 +87,12 @@ fn main() {
 
     tracing::info!(severity = %LogSeverity::Notice, "Application starting");
 
-  // jsonPayload formatted as:
-  // {
-  //   "time": "some-timestamp"
-  //   "severity": "NOTICE",
-  //   "message": "Request received"
-  // }
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "severity": "NOTICE",
+    //   "message": "Application starting"
+    // }
 }
 ```
 
@@ -118,61 +116,75 @@ struct StructuredLog {
     handler: &'static str
 }
 
-
 fn handle_request(request: Request) {
-  let http_request = HttpRequest {
-      request_method: request.method().into(),
-      request_url: request.uri().into(),
-      ..Default::default()
-  };
+    let http_request = HttpRequest {
+        request_method: request.method().into(),
+        request_url: request.uri().into(),
+        ..Default::default()
+    };
 
-  let structured_log = StructuredLog {
-      service: "request_handlers",
-      handler: "handle_request",
-  };
+    let structured_log = StructuredLog {
+        service: "request_handlers",
+        handler: "handle_request",
+    };
 
-  tracing::info!(
-    http_request = http_request.as_value(),
-    structured_log = structured_log.as_value(),
-    "Request received"
-  );
+    tracing::info!(
+      http_request = http_request.as_value(),
+      structured_log = structured_log.as_value(),
+      "Request received"
+    );
 
-  // jsonPayload formatted as:
-  // {
-  //   "time": "some-timestamp"
-  //   "severity": "INFO",
-  //   "httpRequest": {
-  //     "requestMethod": "GET",
-  //     "requestUrl": "/some/url/from/request"
-  //    },
-  //   "structuredLog": {
-  //      "service": "request_handlers",
-  //      "handler": "handle_request"
-  //    },
-  //   "message": "Request received"
-  // }
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "severity": "INFO",
+    //   "httpRequest": {
+    //     "requestMethod": "GET",
+    //     "requestUrl": "/some/url/from/request"
+    //    },
+    //   "structuredLog": {
+    //      "service": "request_handlers",
+    //      "handler": "handle_request"
+    //    },
+    //   "message": "Request received"
+    // }
 }
 ```
 
-#### With OpenTelemetry integration:
+#### With Cloud Trace support:
 
-`tracing_stackdriver` supports integration with [OpenTelemetry](https://opentelemetry.io) via [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) and outputs [special Cloud Logging fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields) for trace sampling and log correlation.
+`tracing_stackdriver` supports integration with [Cloud Trace](https://cloud.google.com/trace) and [OpenTelemetry](https://opentelemetry.io) via [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) and outputs [special Cloud Trace `LogEntry` fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields) for trace sampling and log correlation.
 
-To enable OpenTelemetry integration, you need to
-1. use the `opentelemetry` feature flag, and
-2. provide `StackdriverLayer` with your GCP project ID, and
-3. add a [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) layer to the subscriber.
+To enable Cloud Trace support, you need to enable the `opentelemetry` feature flag and provide a `CloudTraceConfiguration` to the `enable_cloud_trace` method of the layer.
+
 ```rust
-let stackdriver = tracing_stackdriver::layer()
-    .with_project_id("my_gcp_project_id".into());
-let subscriber = tracing_subscriber::Registry::default()
-    // You may want to configure the `tracing_opentelemetry` layer to suit your needs.
+use tracing_stackdriver::CloudTraceConfiguration;
+
+fn main() {
+    // You may want to configure the `tracing_opentelemetry` layer to suit your needs,
+    // including the use of an additional tracer or exporter.
     // See `tracing_opentelemetry`'s doc for details.
-    .with(tracing_opentelemetry::layer())
-    .with(stackdriver);
+    let opentelemetry = tracing_opentelemetry::layer();
+
+    let stackdriver = tracing_stackdriver::layer()
+        .enable_cloud_trace(CloudTraceConfiguration { project_id: "my-project-id" });
+
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(opentelemetry)
+        .with(stackdriver);
+
+    // set up the root span to trigger Span/Trace ID generation
+    let root = tracing::info_span!("root");
+    let _root = root.enter();
+    tracing::info!("Application starting");
+
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "severity": "INFO",
+    //   "message": "Application starting",
+    //   "logging.googleapis.com/spanId": "0000000000000000",
+    //   "logging.googleapis.com/trace":"projects/my-project-id/traces/0679686673a"
+    // }
+}
 ```
-
-#### Roadmap:
-
-1. distributing tracing data in [Cloud Trace](https://cloud.google.com/trace/docs) format
-2. support the logging API in addition to the logging agent/std{out,err}
