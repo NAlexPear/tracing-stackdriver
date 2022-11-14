@@ -3,6 +3,7 @@ use std::{
     sync::{Mutex, TryLockError},
 };
 
+#[derive(Debug)]
 pub struct MockWriter<'a>(pub &'a Mutex<Vec<u8>>);
 
 impl<'a> MockWriter<'a> {

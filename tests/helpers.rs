@@ -1,3 +1,4 @@
+// FIXME: make this a simple function instead
 #[macro_export]
 macro_rules! run_with_tracing {
     (|| $expression:expr) => {{

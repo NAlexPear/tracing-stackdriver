@@ -1,4 +1,4 @@
-#![allow(clippy::blacklisted_name)]
+#![allow(clippy::disallowed_names)]
 use lazy_static::lazy_static;
 use mocks::{MockDefaultEvent, MockEventWithSpan, MockHttpEvent, MockHttpRequest};
 use serde::Deserialize;

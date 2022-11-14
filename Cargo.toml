@@ -30,7 +30,7 @@ optional = true
 version = "0.2.8"
 
 [dependencies.opentelemetry]
-version = "0.17.0"
+version = "0.18.0"
 optional = true
 
 [dependencies.serde]
@@ -43,7 +43,7 @@ features = ["formatting"]
 version = "0.3.11"
 
 [dependencies.tracing-opentelemetry]
-version = "0.17.4"
+version = "0.18.0"
 optional = true
 
 [dependencies.tracing-subscriber]
@@ -66,10 +66,15 @@ version = "0.1.0"
 [dev-dependencies]
 lazy_static = "1.4.0"
 tracing = "0.1.35"
+rand = "0.8.5"
 
 [dev-dependencies.time]
 features = ["serde", "serde-well-known", "formatting"]
 version = "0.3.11"
+
+[dev-dependencies.opentelemetry]
+features = ["testing"]
+version = "0.18.0"
 
 [features]
 valuable = ["dep:valuable", "valuable-serde", "http", "url"]

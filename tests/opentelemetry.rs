@@ -1,49 +1,23 @@
 #![cfg(feature = "opentelemetry")]
 use lazy_static::lazy_static;
-use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
+use opentelemetry::{
+    sdk::{testing::trace::TestSpan, trace::Tracer},
+    trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
+};
+use rand::Rng;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::{fmt::Debug, sync::Mutex};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
-use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 
 mod writer;
 
 static PROJECT_ID: &str = "my_project_123";
 
-macro_rules! run_with_tracing {
-    (|| $expression:expr) => {{
-        lazy_static! {
-            static ref BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-        }
-
-        let make_writer = || writer::MockWriter(&BUFFER);
-
-        let stackdriver = tracing_stackdriver::layer()
-            .with_writer(make_writer)
-            .with_project_id(PROJECT_ID.into());
-
-        let subscriber = tracing_subscriber::registry()
-            .with(
-                tracing_opentelemetry::layer()
-                    .with_location(false)
-                    .with_threads(false)
-                    .with_tracked_inactivity(false),
-            )
-            .with(stackdriver);
-
-        tracing::subscriber::with_default(subscriber, || {
-            let parent = opentelemetry::Context::new();
-            let root_span = tracing::info_span!("root_span");
-            root_span.set_parent(parent);
-            let _root_span = root_span.enter();
-            $expression
-        });
-
-        &BUFFER
-            .try_lock()
-            .expect("Couldn't get lock on test write target")
-            .to_vec()
-    }};
+lazy_static! {
+    // use a tracer that generates valid span IDs (unlike default NoopTracer)
+    static ref TRACER: Tracer = opentelemetry::sdk::export::trace::stdout::new_pipeline()
+        .with_writer(std::io::sink())
+        .install_simple();
 }
 
 #[derive(Debug, Deserialize)]
@@ -67,52 +41,144 @@ where
     SpanId::from_hex(hex).map_err(D::Error::custom)
 }
 
-#[test]
-fn includes_cloud_trace_fields() {
-    let raw = run_with_tracing!(|| tracing::info!("Should have cloud trace fields"));
+fn test_with_tracing<F, M>(span_id: SpanId, trace_id: TraceId, make_writer: M, callback: F)
+where
+    F: FnOnce(),
+    M: for<'writer> MakeWriter<'writer> + Sync + Send + 'static,
+{
+    // generate the tracing subscriber
+    let subscriber = tracing_subscriber::registry()
+        .with(
+            tracing_opentelemetry::layer()
+                .with_location(false)
+                .with_threads(false)
+                .with_tracked_inactivity(false)
+                .with_tracer(TRACER.clone()),
+        )
+        .with(
+            tracing_stackdriver::layer()
+                .with_writer(make_writer)
+                .with_project_id(PROJECT_ID.into()),
+        );
 
-    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(raw)
-        .expect("Error converting test buffer to JSON");
+    // generate a context for events
+    let context = opentelemetry::Context::current_with_span(TestSpan(SpanContext::new(
+        trace_id,
+        span_id,
+        TraceFlags::default(),
+        false,
+        TraceState::default(),
+    )));
 
-    assert_ne!(output.span_id.to_string(), "0000000000000000");
-    assert!(output
-        .trace_id
-        .starts_with(&format!("projects/{PROJECT_ID}/traces/")));
-    assert!(!output.trace_sampled);
+    // attach the tracing context
+    let _context = context.attach();
+
+    // run the callback in a tracing context
+    tracing::subscriber::with_default(subscriber, callback);
 }
 
 #[test]
-fn includes_explicit_opentelemetry_context_fields() {
-    let span_id = SpanId::from_hex("b7ad6b7169203331").expect("Error converting hex to SpanId");
-    let trace_id = TraceId::from_hex("0af7651916cd43dd8448eb211c80319c")
-        .expect("Error converting hex to TraceId");
+fn includes_correct_cloud_trace_fields() {
+    // generate the output buffer
+    lazy_static! {
+        static ref FIELD_TEST_BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    }
 
-    let raw = run_with_tracing!(|| {
-        let parent = opentelemetry::Context::new().with_remote_span_context(SpanContext::new(
-            trace_id,
-            span_id,
-            TraceFlags::default(),
-            true,
-            TraceState::from_key_value([("", ""); 0]).unwrap(),
-        ));
+    let make_writer = || writer::MockWriter(&FIELD_TEST_BUFFER);
 
-        let root_span = tracing::info_span!("root_span");
-        root_span.set_parent(parent);
-        root_span.in_scope(|| {
-            let inner_span = tracing::info_span!("inner_span");
-            inner_span.in_scope(|| tracing::info!("Should have cloud trace fields"));
-        })
+    // generate relevant IDs
+    let mut rng = rand::thread_rng();
+    let span_id = SpanId::from_u64(rng.gen());
+    let trace_id = TraceId::from_u128(rng.gen());
+
+    // generate a tracing-based event
+    test_with_tracing(span_id, trace_id, make_writer, || {
+        let root = tracing::debug_span!("root");
+        let _root = root.enter();
+        tracing::debug!("test event");
     });
 
-    println!("nested output -> {}", String::from_utf8_lossy(raw));
+    let output: MockEventWithCloudTraceFields =
+        serde_json::from_slice(&FIELD_TEST_BUFFER.try_lock().unwrap())
+            .expect("Error converting test buffer to JSON");
 
-    let output = serde_json::from_slice::<MockEventWithCloudTraceFields>(raw)
-        .expect("Error converting test buffer to JSON");
+    // span IDs should NOT be propagated, but generated for each span
+    assert_ne!(
+        output.span_id, span_id,
+        "Span IDs are the same, but should not be"
+    );
 
-    assert_eq!(output.span_id, span_id, "Spans are not the same");
+    // trace ID should be propagated and formatted in Cloud Trace format
     assert_eq!(
         output.trace_id,
-        format!("projects/{PROJECT_ID}/traces/{trace_id}")
+        format!("projects/{PROJECT_ID}/traces/{trace_id}"),
+        "Trace IDs are not compatible",
     );
-    assert!(output.trace_sampled)
+
+    // trace sampling should be disabled by default
+    assert!(!output.trace_sampled)
+}
+
+#[test]
+fn handles_nested_spans() {
+    // generate the output buffer
+    lazy_static! {
+        static ref NESTED_SPAN_TEST_BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
+    }
+
+    let make_writer = || writer::MockWriter(&NESTED_SPAN_TEST_BUFFER);
+
+    // generate relevant IDs
+    let mut rng = rand::thread_rng();
+    let span_id = SpanId::from_u64(rng.gen());
+    let trace_id = TraceId::from_u128(rng.gen());
+
+    // generate a set of nested tracing-based events
+    test_with_tracing(span_id, trace_id, make_writer, || {
+        let root = tracing::debug_span!("root");
+        let _root = root.enter();
+        tracing::debug!("top-level test event");
+        let inner = tracing::debug_span!("inner");
+        let _inner = inner.enter();
+        tracing::debug!("inner test event");
+    });
+
+    // parse the newline-separated messages from the test buffer
+    let raw = &NESTED_SPAN_TEST_BUFFER.try_lock().unwrap();
+
+    let mut messages = raw
+        .split(|byte| byte == &b'\n')
+        .filter(|segment| !segment.is_empty())
+        .map(serde_json::from_slice) // FIXME: serde_json this bad boy
+        .collect::<Result<Vec<MockEventWithCloudTraceFields>, _>>()
+        .expect("Error converting test buffer to JSON")
+        .into_iter()
+        .peekable();
+
+    // test messages at every depth for correctness
+    while let Some(message) = messages.next() {
+        // span IDs should NOT be propagated, but generated for each span
+        assert_ne!(
+            message.span_id, span_id,
+            "Span IDs are the same, but should not be"
+        );
+
+        if let Some(next_message) = messages.peek() {
+            // span IDs should be different between spans
+            assert_ne!(
+                message.span_id, next_message.span_id,
+                "Span IDs between messages are the same, but should not be"
+            );
+        }
+
+        // trace ID should be propagated to all messages and formatted in Cloud Trace format
+        assert_eq!(
+            message.trace_id,
+            format!("projects/{PROJECT_ID}/traces/{trace_id}"),
+            "Trace IDs are not compatible",
+        );
+
+        // trace sampling should be disabled by default
+        assert!(!message.trace_sampled)
+    }
 }

@@ -80,12 +80,9 @@ impl EventFormatter {
             #[cfg(feature = "opentelemetry")]
             if let Some(otel_data) = span.extensions().get::<tracing_opentelemetry::OtelData>() {
                 use opentelemetry::trace::TraceContextExt;
-                println!("{:?}", otel_data.parent_cx);
+
                 let builder = &otel_data.builder;
 
-                println!("{builder:?}");
-
-                // FIXME: make sure that a span ID is actually generated for OtelData by this point
                 if let Some(span_id) = builder.span_id {
                     map.serialize_entry("logging.googleapis.com/spanId", &span_id.to_string())?;
                 }
@@ -93,17 +90,20 @@ impl EventFormatter {
                 let (trace_id, trace_sampled) = if otel_data.parent_cx.has_active_span() {
                     let span_ref = otel_data.parent_cx.span();
                     let span_context = span_ref.span_context();
+
                     (Some(span_context.trace_id()), span_context.is_sampled())
                 } else {
                     (builder.trace_id, false)
                 };
 
+                // FIXME: make project_id required when the opentelemetry feature is enabled
                 if let (Some(trace_id), Some(project_id)) = (trace_id, self.project_id.as_ref()) {
                     map.serialize_entry(
                         "logging.googleapis.com/trace",
                         &format!("projects/{project_id}/traces/{trace_id}"),
                     )?;
                 }
+
                 if trace_sampled {
                     map.serialize_entry("logging.googleapis.com/trace_sampled", &true)?;
                 }

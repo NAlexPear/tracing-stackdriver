@@ -1,4 +1,4 @@
-#![allow(clippy::blacklisted_name)]
+#![allow(clippy::disallowed_names)]
 #![cfg(all(tracing_unstable, feature = "valuable"))]
 use lazy_static::lazy_static;
 use mocks::{MockDefaultEvent, MockHttpEvent};
