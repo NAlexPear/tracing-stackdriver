@@ -7,11 +7,15 @@ use opentelemetry::{
 use rand::Rng;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::{fmt::Debug, sync::Mutex};
+use tracing_stackdriver::CloudTraceConfiguration;
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 
 mod writer;
 
 static PROJECT_ID: &str = "my_project_123";
+static CLOUD_TRACE_CONFIGURATION: CloudTraceConfiguration = CloudTraceConfiguration {
+    project_id: PROJECT_ID,
+};
 
 lazy_static! {
     // use a tracer that generates valid span IDs (unlike default NoopTracer)
@@ -58,7 +62,7 @@ where
         .with(
             tracing_stackdriver::layer()
                 .with_writer(make_writer)
-                .with_project_id(PROJECT_ID.into()),
+                .enable_cloud_trace(CLOUD_TRACE_CONFIGURATION),
         );
 
     // generate a context for events

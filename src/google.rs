@@ -230,3 +230,16 @@ impl valuable::Structable for HttpRequest {
         valuable::StructDef::new_dynamic("HttpRequest", valuable::Fields::Named(&[]))
     }
 }
+
+/// Configuration for projects looking to use the [Cloud Trace](https://cloud.google.com/trace) integration
+/// through [trace-specific fields](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace) in
+/// a LogEntry.
+#[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+#[cfg(any(docsrs, feature = "opentelemetry"))]
+#[derive(Clone, Copy)]
+pub struct CloudTraceConfiguration {
+    /// Google-provided [Project
+    /// ID](https://cloud.google.com/resource-manager/docs/creating-managing-projects) for
+    /// prefixing and identifying collectecd traces.
+    pub project_id: &'static str,
+}

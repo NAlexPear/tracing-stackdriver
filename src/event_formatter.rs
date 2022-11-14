@@ -38,14 +38,11 @@ impl From<Error> for fmt::Error {
 /// Tracing Event formatter for Stackdriver layers
 #[derive(Default)]
 pub struct EventFormatter {
-    project_id: Option<String>,
+    #[cfg(feature = "opentelemetry")]
+    pub(crate) cloud_trace_configuration: Option<crate::CloudTraceConfiguration>,
 }
 
 impl EventFormatter {
-    pub(crate) fn project_id(mut self, project_id: String) -> Self {
-        self.project_id = Some(project_id);
-        self
-    }
     /// Internal event formatting for a given serializer
     fn format_event<S>(
         &self,
@@ -78,7 +75,10 @@ impl EventFormatter {
             map.serialize_entry("spans", &SerializableContext::new(context))?;
 
             #[cfg(feature = "opentelemetry")]
-            if let Some(otel_data) = span.extensions().get::<tracing_opentelemetry::OtelData>() {
+            if let (Some(crate::CloudTraceConfiguration { project_id }), Some(otel_data)) = (
+                self.cloud_trace_configuration.as_ref(),
+                span.extensions().get::<tracing_opentelemetry::OtelData>(),
+            ) {
                 use opentelemetry::trace::TraceContextExt;
 
                 let builder = &otel_data.builder;
@@ -96,11 +96,10 @@ impl EventFormatter {
                     (builder.trace_id, false)
                 };
 
-                // FIXME: make project_id required when the opentelemetry feature is enabled
-                if let (Some(trace_id), Some(project_id)) = (trace_id, self.project_id.as_ref()) {
+                if let Some(trace_id) = trace_id {
                     map.serialize_entry(
                         "logging.googleapis.com/trace",
-                        &format!("projects/{project_id}/traces/{trace_id}"),
+                        &format!("projects/{project_id}/traces/{trace_id}",),
                     )?;
                 }
 

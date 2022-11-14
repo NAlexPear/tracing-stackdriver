@@ -58,14 +58,13 @@ where
         Layer(self.0.with_writer(make_writer))
     }
 
-    /// Set the Google Cloud Project ID for use with Cloud Trace
-    // FIXME: set as an entire configuration option for cloud trace if there are no other uses for
-    // project_id
-    pub fn with_project_id(self, project_id: String) -> Self {
-        Self(
-            self.0
-                .event_format(EventFormatter::default().project_id(project_id)),
-        )
+    /// Enable Cloud Trace integration with OpenTelemetry through special LogEntry fields
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[cfg(any(docsrs, feature = "opentelemetry"))]
+    pub fn enable_cloud_trace(self, configuration: crate::CloudTraceConfiguration) -> Self {
+        Self(self.0.event_format(EventFormatter {
+            cloud_trace_configuration: Some(configuration),
+        }))
     }
 }
 
