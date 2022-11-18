@@ -236,10 +236,10 @@ impl valuable::Structable for HttpRequest {
 /// a LogEntry.
 #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
 #[cfg(any(docsrs, feature = "opentelemetry"))]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct CloudTraceConfiguration {
     /// Google-provided [Project
     /// ID](https://cloud.google.com/resource-manager/docs/creating-managing-projects) for
     /// prefixing and identifying collectecd traces.
-    pub project_id: &'static str,
+    pub project_id: String,
 }

@@ -13,11 +13,12 @@ use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 mod writer;
 
 static PROJECT_ID: &str = "my_project_123";
-static CLOUD_TRACE_CONFIGURATION: CloudTraceConfiguration = CloudTraceConfiguration {
-    project_id: PROJECT_ID,
-};
 
 lazy_static! {
+    static ref CLOUD_TRACE_CONFIGURATION: CloudTraceConfiguration = CloudTraceConfiguration {
+        project_id: PROJECT_ID.to_owned(),
+    };
+
     // use a tracer that generates valid span IDs (unlike default NoopTracer)
     static ref TRACER: Tracer = opentelemetry::sdk::export::trace::stdout::new_pipeline()
         .with_writer(std::io::sink())
@@ -62,7 +63,7 @@ where
         .with(
             tracing_stackdriver::layer()
                 .with_writer(make_writer)
-                .enable_cloud_trace(CLOUD_TRACE_CONFIGURATION),
+                .enable_cloud_trace(CLOUD_TRACE_CONFIGURATION.clone()),
         );
 
     // generate a context for events
