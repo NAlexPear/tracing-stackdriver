@@ -89,3 +89,24 @@ where
         list.end()
     }
 }
+
+pub(crate) struct SourceLocation<'a> {
+    pub(crate) file: &'a str,
+    pub(crate) line: Option<u32>,
+}
+
+impl<'a> Serialize for SourceLocation<'a> {
+    fn serialize<R>(&self, serializer: R) -> Result<R::Ok, R::Error>
+    where
+        R: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(if self.line.is_some() { 2 } else { 1 }))?;
+        map.serialize_entry("file", self.file)?;
+        if let Some(line) = self.line {
+            // Stackdriver expects the line number to be serialised as a string:
+            // https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation
+            map.serialize_entry("line", &line.to_string())?;
+        }
+        map.end()
+    }
+}
