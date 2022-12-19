@@ -1,6 +1,6 @@
 use crate::{
     google::LogSeverity,
-    serializers::{SerializableContext, SerializableSpan},
+    serializers::{SerializableContext, SerializableSpan, SourceLocation},
     visitor::Visitor,
     writer::WriteAdaptor,
 };
@@ -68,6 +68,16 @@ impl EventFormatter {
         // serialize custom fields
         map.serialize_entry("time", &time)?;
         map.serialize_entry("target", &meta.target())?;
+
+        if let Some(file) = meta.file() {
+            map.serialize_entry(
+                "logging.googleapis.com/sourceLocation",
+                &SourceLocation {
+                    file,
+                    line: meta.line(),
+                },
+            )?;
+        }
 
         // serialize the current span and its leaves
         if let Some(span) = span {

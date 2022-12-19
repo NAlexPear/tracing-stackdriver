@@ -128,3 +128,13 @@ fn nests_http_request() {
 
     assert_eq!(&output.http_request, &mock_http_request);
 }
+
+#[test]
+fn includes_source_location() {
+    let output =
+        serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!("hello!")))
+            .expect("Error converting test buffer to JSON");
+    assert!(output.source_location.file.ends_with("default.rs"));
+    assert!(!output.source_location.line.is_empty());
+    assert!(output.source_location.line != "0");
+}
