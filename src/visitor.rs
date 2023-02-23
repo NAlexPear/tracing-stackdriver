@@ -44,9 +44,19 @@ where
             self.serializer.serialize_entry("severity", &severity)?;
 
             let mut http_request = BTreeMap::new();
+            let mut google_labels = BTreeMap::new();
 
             for (key, value) in self.values {
-                if key.starts_with("http_request.") {
+                if key.starts_with("google.labels.") {
+                    if let Some(google_labels_key) = key.splitn(3, '.').last() {
+                        google_labels.insert(google_labels_key.to_camel_case(), value);
+                    }
+                } else if key.starts_with("google.") {
+                    if let Some(google_field) = key.splitn(3, '.').last() {
+                        self.serializer
+                            .serialize_entry(&format!("logging.googleapis.com/{}", google_field.to_camel_case()), &value)?;
+                    }
+                } else if key.starts_with("http_request.") {
                     if let Some(request_key) = key.splitn(2, '.').last() {
                         http_request.insert(request_key.to_camel_case(), value);
                     }
@@ -54,6 +64,11 @@ where
                     self.serializer
                         .serialize_entry(&key.to_camel_case(), &value)?;
                 }
+            }
+
+            if !google_labels.is_empty() {
+                self.serializer
+                    .serialize_entry("logging.googleapis.com/labels", &google_labels)?;
             }
 
             if !http_request.is_empty() {

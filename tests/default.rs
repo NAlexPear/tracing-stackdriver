@@ -1,6 +1,7 @@
 #![allow(clippy::disallowed_names)]
+use std::collections::BTreeMap;
 use lazy_static::lazy_static;
-use mocks::{MockDefaultEvent, MockEventWithSpan, MockHttpEvent, MockHttpRequest};
+use mocks::{MockDefaultEvent, MockEventWithSpan, MockHttpEvent, MockHttpRequest, MockGoogleLabelsEvent, MockGoogleFieldsEvent};
 use serde::Deserialize;
 use std::sync::Mutex;
 use time::OffsetDateTime;
@@ -127,6 +128,29 @@ fn nests_http_request() {
     .expect("Error converting test buffer to JSON");
 
     assert_eq!(&output.http_request, &mock_http_request);
+}
+
+#[test]
+fn nests_google_labels() {
+    let mut mock = BTreeMap::<String, String>::new();
+    mock.insert("app".parse().unwrap(), "test".parse().unwrap());
+
+    let output = serde_json::from_slice::<MockGoogleLabelsEvent>(run_with_tracing!(|| tracing::info!(
+        google.labels.app = "test",
+    )))
+        .expect("Error converting test buffer to JSON");
+
+    assert_eq!(&output.google_labels, &mock);
+}
+
+#[test]
+fn nests_google_insert_id() {
+    let output = serde_json::from_slice::<MockGoogleFieldsEvent>(run_with_tracing!(|| tracing::info!(
+        google.insert_id = "test",
+    )))
+        .expect("Error converting test buffer to JSON");
+
+    assert_eq!(&output.insert_id, "test");
 }
 
 #[test]

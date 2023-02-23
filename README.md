@@ -188,3 +188,34 @@ fn main() {
     // }
 }
 ```
+
+#### With Cloud Fields support:
+
+Don't want to use Cloud Trace using OpenTelemetry? No problem, `tracing_stackdriver` has the possiblility.
+
+`tracing_stackdriver` supports [special Cloud Trace `LogEntry` fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields), without using OpenTelemetry.
+
+```rust
+fn main() {
+    // requires working global setup (see above examples)
+    tracing::info!(
+        google.insert_id = "test",
+        google.labels.app = "some-app",
+        google.labels.version = "first",
+        google.labels.version = "last",
+        "With a message."
+    );
+
+    // Json Payload
+    // {
+    //    "time": "some-timestamp",
+    //    "severity": "INFO",
+    //    "logging.googleapis.com/insertId": "test",
+    //    "message": "With a message.",
+    //    "logging.googleapis.com/labels": {
+    //       "app": "some-app",
+    //       "version":"last"
+    //    }
+    // }
+}
+```
