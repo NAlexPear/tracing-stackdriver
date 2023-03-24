@@ -151,11 +151,14 @@ fn handle_request(request: Request) {
 }
 ```
 
-#### With Cloud Trace support:
+
+#### Configure the formatter
+
+##### With Cloud Trace support:
 
 `tracing_stackdriver` supports integration with [Cloud Trace](https://cloud.google.com/trace) and [OpenTelemetry](https://opentelemetry.io) via [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) and outputs [special Cloud Trace `LogEntry` fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields) for trace sampling and log correlation.
 
-To enable Cloud Trace support, you need to enable the `opentelemetry` feature flag and provide a `CloudTraceConfiguration` to the `enable_cloud_trace` method of the layer.
+To enable Cloud Trace support, you need to enable the `opentelemetry` feature flag and provide a `project-id` to the `enable_cloud_trace` method of the configuration.
 
 ```rust
 use tracing_stackdriver::CloudTraceConfiguration;
@@ -167,7 +170,7 @@ fn main() {
     let opentelemetry = tracing_opentelemetry::layer();
 
     let stackdriver = tracing_stackdriver::layer()
-        .enable_cloud_trace(CloudTraceConfiguration { project_id: "my-project-id" });
+        .with_settings(tracing_stackdriver::Configuration::default().enable_cloud_trace("my-project-id"));
 
     let subscriber = tracing_subscriber::Registry::default()
         .with(opentelemetry)
@@ -185,6 +188,37 @@ fn main() {
     //   "message": "Application starting",
     //   "logging.googleapis.com/spanId": "0000000000000000",
     //   "logging.googleapis.com/trace":"projects/my-project-id/traces/0679686673a"
+    // }
+}
+```
+
+##### Enable writing source location.
+`tracing_stackdriver` supports writing the [source location field](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation).
+
+To enable writing the source location field
+
+```rust
+use tracing_stackdriver::CloudTraceConfiguration;
+
+fn main() {
+
+    let stackdriver = tracing_stackdriver::layer()
+        .with_settings(tracing_stackdriver::Configuration::default().enable_source_location());
+
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(stackdriver);
+
+    // set up the root span to trigger Span/Trace ID generation
+    let root = tracing::info_span!("root");
+    let _root = root.enter();
+    tracing::info!("Application starting");
+
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "severity": "INFO",
+    //   "message": "Application starting",
+    //    "logging.googleapis.com/sourceLocation": "{file: "src/lib.rs", line: "210"}"
     // }
 }
 ```

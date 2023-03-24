@@ -58,12 +58,14 @@ where
         Layer(self.0.with_writer(make_writer))
     }
 
-    /// Enable Cloud Trace integration with OpenTelemetry through special LogEntry fields
-    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
-    #[cfg(any(docsrs, feature = "opentelemetry"))]
-    pub fn enable_cloud_trace(self, configuration: crate::CloudTraceConfiguration) -> Self {
+    /// Add optional settings to stackdriver layer
+    pub fn with_settings(self, configuration: crate::Configuration) -> Self {
         Self(self.0.event_format(EventFormatter {
-            cloud_trace_configuration: Some(configuration),
+            #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+            #[cfg(any(docsrs, feature = "opentelemetry"))]
+            cloud_trace_configuration: configuration.cloud_trace_configuration,
+
+            source_location_enabled: configuration.source_location_configuration,
         }))
     }
 }

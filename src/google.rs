@@ -231,6 +231,40 @@ impl valuable::Structable for HttpRequest {
     }
 }
 
+/// Configuration builder for the layer formatter.
+#[derive(Clone, Default)]
+pub struct Configuration {
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[cfg(any(docsrs, feature = "opentelemetry"))]
+    pub(crate) cloud_trace_configuration: Option<CloudTraceConfiguration>,
+
+    pub(crate) source_location_configuration: SourceLocationConfiguration,
+}
+
+impl Configuration {
+    /// Enable Cloud Trace integration with OpenTelemetry through special LogEntry fields
+    #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+    #[cfg(any(docsrs, feature = "opentelemetry"))]
+    pub fn enable_cloud_trace(self, project_id: String) -> Self {
+        Self {
+            #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+            #[cfg(any(docsrs, feature = "opentelemetry"))]
+            cloud_trace_configuration: Some(CloudTraceConfiguration { project_id }),
+            source_location_configuration,
+        }
+    }
+
+    /// Enable source location fields through special LogEntry fields
+    pub fn enable_source_location(self) -> Self {
+        Self {
+            #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
+            #[cfg(any(docsrs, feature = "opentelemetry"))]
+            cloud_trace_configuration,
+            source_location_configuration: SourceLocationConfiguration::Enabled,
+        }
+    }
+}
+
 /// Configuration for projects looking to use the [Cloud Trace](https://cloud.google.com/trace) integration
 /// through [trace-specific fields](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace) in
 /// a LogEntry.
@@ -242,4 +276,21 @@ pub struct CloudTraceConfiguration {
     /// ID](https://cloud.google.com/resource-manager/docs/creating-managing-projects) for
     /// prefixing and identifying collectecd traces.
     pub project_id: String,
+}
+
+/// Configures whether to write the optional source location field.
+/// When enabled adds `logging.googleapis.com/sourceLocation{file: "src/lib.rs", line: "210"}`
+/// https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation
+#[derive(Clone, PartialEq)]
+pub enum SourceLocationConfiguration {
+    /// Enable source location information. Adds `logging.googleapis.com/sourceLocation{file: "src/lib.rs", line: "210"}`
+    Enabled,
+    /// Disable source location information
+    Disabled,
+}
+
+impl Default for SourceLocationConfiguration {
+    fn default() -> Self {
+        SourceLocationConfiguration::Disabled
+    }
 }

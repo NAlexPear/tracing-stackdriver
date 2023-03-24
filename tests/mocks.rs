@@ -13,6 +13,14 @@ pub struct MockDefaultEvent {
     pub time: OffsetDateTime,
     pub target: String,
     pub severity: String,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct MockDefaultEventWithSourceLocation {
+    #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
+    pub time: OffsetDateTime,
+    pub target: String,
+    pub severity: String,
     #[serde(rename = "logging.googleapis.com/sourceLocation")]
     pub source_location: MockSourceLocation,
 }

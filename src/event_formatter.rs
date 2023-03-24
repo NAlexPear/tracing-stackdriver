@@ -40,6 +40,8 @@ impl From<Error> for fmt::Error {
 pub struct EventFormatter {
     #[cfg(feature = "opentelemetry")]
     pub(crate) cloud_trace_configuration: Option<crate::CloudTraceConfiguration>,
+
+    pub(crate) source_location_enabled: crate::SourceLocationConfiguration,
 }
 
 impl EventFormatter {
@@ -69,14 +71,16 @@ impl EventFormatter {
         map.serialize_entry("time", &time)?;
         map.serialize_entry("target", &meta.target())?;
 
-        if let Some(file) = meta.file() {
-            map.serialize_entry(
-                "logging.googleapis.com/sourceLocation",
-                &SourceLocation {
-                    file,
-                    line: meta.line(),
-                },
-            )?;
+        if self.source_location_enabled == crate::SourceLocationConfiguration::Enabled {
+            if let Some(file) = meta.file() {
+                map.serialize_entry(
+                    "logging.googleapis.com/sourceLocation",
+                    &SourceLocation {
+                        file,
+                        line: meta.line(),
+                    },
+                )?;
+            }
         }
 
         // serialize the current span and its leaves

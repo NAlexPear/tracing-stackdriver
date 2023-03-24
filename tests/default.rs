@@ -7,6 +7,8 @@ use time::OffsetDateTime;
 use tracing_stackdriver::LogSeverity;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 
+use crate::mocks::MockDefaultEventWithSourceLocation;
+
 mod helpers;
 mod mocks;
 mod writer;
@@ -131,9 +133,10 @@ fn nests_http_request() {
 
 #[test]
 fn includes_source_location() {
-    let output =
-        serde_json::from_slice::<MockDefaultEvent>(run_with_tracing!(|| tracing::info!("hello!")))
-            .expect("Error converting test buffer to JSON");
+    let output = serde_json::from_slice::<MockDefaultEventWithSourceLocation>(
+        run_with_tracing_source_location!(|| tracing::info!("hello!")),
+    )
+    .expect("Error converting test buffer to JSON");
     assert!(output.source_location.file.ends_with("default.rs"));
     assert!(!output.source_location.line.is_empty());
     assert!(output.source_location.line != "0");
