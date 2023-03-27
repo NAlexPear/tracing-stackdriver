@@ -58,12 +58,21 @@ where
         Layer(self.0.with_writer(make_writer))
     }
 
-    /// Enable Cloud Trace integration with OpenTelemetry through special LogEntry fields
+    /// Configures whether or not Events will include source locations in a special LogEntry field
+    pub fn with_source_location(self, include_source_location: bool) -> Self {
+        Self(self.0.map_event_format(|mut event_formatter| {
+            event_formatter.include_source_location = include_source_location;
+            event_formatter
+        }))
+    }
+
+    /// Configures the Cloud Trace integration with OpenTelemetry through special LogEntry fields
     #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     #[cfg(any(docsrs, feature = "opentelemetry"))]
-    pub fn enable_cloud_trace(self, configuration: crate::CloudTraceConfiguration) -> Self {
-        Self(self.0.event_format(EventFormatter {
-            cloud_trace_configuration: Some(configuration),
+    pub fn with_cloud_trace(self, configuration: crate::CloudTraceConfiguration) -> Self {
+        Self(self.0.map_event_format(|mut event_formatter| {
+            event_formatter.cloud_trace_configuration = Some(configuration);
+            event_formatter
         }))
     }
 }

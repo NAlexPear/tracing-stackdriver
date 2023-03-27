@@ -155,7 +155,7 @@ fn handle_request(request: Request) {
 
 `tracing_stackdriver` supports integration with [Cloud Trace](https://cloud.google.com/trace) and [OpenTelemetry](https://opentelemetry.io) via [tracing_opentelemetry](https://docs.rs/tracing-opentelemetry/latest/tracing_opentelemetry) and outputs [special Cloud Trace `LogEntry` fields](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields) for trace sampling and log correlation.
 
-To enable Cloud Trace support, you need to enable the `opentelemetry` feature flag and provide a `CloudTraceConfiguration` to the `enable_cloud_trace` method of the layer.
+To enable Cloud Trace support, you need to enable the `opentelemetry` feature flag and provide a `CloudTraceConfiguration` to the `with_cloud_trace` method of the layer.
 
 ```rust
 use tracing_stackdriver::CloudTraceConfiguration;
@@ -167,7 +167,7 @@ fn main() {
     let opentelemetry = tracing_opentelemetry::layer();
 
     let stackdriver = tracing_stackdriver::layer()
-        .enable_cloud_trace(CloudTraceConfiguration { project_id: "my-project-id" });
+        .with_cloud_trace(CloudTraceConfiguration { project_id: "my-project-id" });
 
     let subscriber = tracing_subscriber::Registry::default()
         .with(opentelemetry)
