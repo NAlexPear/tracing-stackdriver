@@ -7,7 +7,7 @@ pub struct MockSourceLocation {
     pub line: String,
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct MockDefaultEvent {
     #[serde(deserialize_with = "time::serde::rfc3339::deserialize")]
     pub time: OffsetDateTime,

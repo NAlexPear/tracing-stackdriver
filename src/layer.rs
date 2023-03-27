@@ -48,8 +48,6 @@ where
     S: Subscriber + for<'span> LookupSpan<'span>,
     W: for<'writer> MakeWriter<'writer> + 'static,
 {
-    // TODO: support additional tracing_subscriber::fmt::Layer configuration methods as they make sense for this context
-
     /// Sets the MakeWriter that the Layer being built will use to write events.
     pub fn with_writer<M>(self, make_writer: M) -> Layer<S, M>
     where
