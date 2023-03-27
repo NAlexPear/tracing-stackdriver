@@ -36,8 +36,8 @@ impl From<Error> for fmt::Error {
 }
 
 /// Tracing Event formatter for Stackdriver layers
-#[derive(Default)]
 pub struct EventFormatter {
+    pub(crate) include_source_location: bool,
     #[cfg(feature = "opentelemetry")]
     pub(crate) cloud_trace_configuration: Option<crate::CloudTraceConfiguration>,
 }
@@ -69,14 +69,16 @@ impl EventFormatter {
         map.serialize_entry("time", &time)?;
         map.serialize_entry("target", &meta.target())?;
 
-        if let Some(file) = meta.file() {
-            map.serialize_entry(
-                "logging.googleapis.com/sourceLocation",
-                &SourceLocation {
-                    file,
-                    line: meta.line(),
-                },
-            )?;
+        if self.include_source_location {
+            if let Some(file) = meta.file() {
+                map.serialize_entry(
+                    "logging.googleapis.com/sourceLocation",
+                    &SourceLocation {
+                        file,
+                        line: meta.line(),
+                    },
+                )?;
+            }
         }
 
         // serialize the current span and its leaves
@@ -143,5 +145,15 @@ where
         let serializer = serde_json::Serializer::new(WriteAdaptor::new(&mut writer));
         self.format_event(context, serializer, event)?;
         writeln!(writer)
+    }
+}
+
+impl Default for EventFormatter {
+    fn default() -> Self {
+        Self {
+            include_source_location: true,
+            #[cfg(feature = "opentelemetry")]
+            cloud_trace_configuration: None,
+        }
     }
 }

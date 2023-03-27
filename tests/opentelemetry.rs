@@ -63,7 +63,7 @@ where
         .with(
             tracing_stackdriver::layer()
                 .with_writer(make_writer)
-                .enable_cloud_trace(CLOUD_TRACE_CONFIGURATION.clone()),
+                .with_cloud_trace(CLOUD_TRACE_CONFIGURATION.clone()),
         );
 
     // generate a context for events
