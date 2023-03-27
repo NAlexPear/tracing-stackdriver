@@ -1,4 +1,5 @@
 #![cfg(feature = "opentelemetry")]
+use helpers::MockWriter;
 use lazy_static::lazy_static;
 use opentelemetry::{
     sdk::{testing::trace::TestSpan, trace::Tracer},
@@ -6,11 +7,15 @@ use opentelemetry::{
 };
 use rand::Rng;
 use serde::{de::Error, Deserialize, Deserializer};
-use std::{fmt::Debug, sync::Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 use tracing_stackdriver::CloudTraceConfiguration;
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 
-mod writer;
+mod helpers;
+mod mocks;
 
 static PROJECT_ID: &str = "my_project_123";
 
@@ -46,9 +51,12 @@ where
     SpanId::from_hex(hex).map_err(D::Error::custom)
 }
 
-fn test_with_tracing<F, M>(span_id: SpanId, trace_id: TraceId, make_writer: M, callback: F)
-where
-    F: FnOnce(),
+fn test_with_tracing<M>(
+    span_id: SpanId,
+    trace_id: TraceId,
+    make_writer: M,
+    callback: impl FnOnce() -> (),
+) where
     M: for<'writer> MakeWriter<'writer> + Sync + Send + 'static,
 {
     // generate the tracing subscriber
@@ -85,11 +93,9 @@ where
 #[test]
 fn includes_correct_cloud_trace_fields() {
     // generate the output buffer
-    lazy_static! {
-        static ref FIELD_TEST_BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
-    let make_writer = || writer::MockWriter(&FIELD_TEST_BUFFER);
+    let buffer = Arc::new(Mutex::new(vec![]));
+    let shared = buffer.clone();
+    let make_writer = move || MockWriter(shared.clone());
 
     // generate relevant IDs
     let mut rng = rand::thread_rng();
@@ -103,9 +109,8 @@ fn includes_correct_cloud_trace_fields() {
         tracing::debug!("test event");
     });
 
-    let output: MockEventWithCloudTraceFields =
-        serde_json::from_slice(&FIELD_TEST_BUFFER.try_lock().unwrap())
-            .expect("Error converting test buffer to JSON");
+    let output: MockEventWithCloudTraceFields = serde_json::from_slice(&buffer.try_lock().unwrap())
+        .expect("Error converting test buffer to JSON");
 
     // span IDs should NOT be propagated, but generated for each span
     assert_ne!(
@@ -127,11 +132,9 @@ fn includes_correct_cloud_trace_fields() {
 #[test]
 fn handles_nested_spans() {
     // generate the output buffer
-    lazy_static! {
-        static ref NESTED_SPAN_TEST_BUFFER: Mutex<Vec<u8>> = Mutex::new(vec![]);
-    }
-
-    let make_writer = || writer::MockWriter(&NESTED_SPAN_TEST_BUFFER);
+    let buffer = Arc::new(Mutex::new(vec![]));
+    let shared = buffer.clone();
+    let make_writer = move || MockWriter(shared.clone());
 
     // generate relevant IDs
     let mut rng = rand::thread_rng();
@@ -149,7 +152,7 @@ fn handles_nested_spans() {
     });
 
     // parse the newline-separated messages from the test buffer
-    let raw = &NESTED_SPAN_TEST_BUFFER.try_lock().unwrap();
+    let raw = &buffer.try_lock().unwrap();
 
     let mut messages = raw
         .split(|byte| byte == &b'\n')
