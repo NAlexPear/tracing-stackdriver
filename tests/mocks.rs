@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -41,4 +42,18 @@ pub struct MockHttpRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MockHttpEvent {
     pub http_request: MockHttpRequest,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MockGoogleLabelsEvent {
+    #[serde(rename = "logging.googleapis.com/labels")]
+    pub google_labels: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MockGoogleFieldsEvent {
+    #[serde(rename = "logging.googleapis.com/insertId")]
+    pub insert_id: String,
 }
