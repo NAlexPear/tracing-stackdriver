@@ -188,3 +188,19 @@ fn main() {
     // }
 }
 ```
+
+#### With Source Locations:
+
+By default, `tracing_stackdriver` includes the source location of `tracing` events in a special [`SourceLocation` composite field](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogEntrySourceLocation) on the emitted `LogEntry`. This behavior can be configured with the `with_source_location` method of the layer.
+
+```rust
+fn main() {
+    // Source Locations are enabled by default, so they must be disabled by setting the configuration
+    // to "false" using with_source_location()
+    let stackdriver = tracing_stackdriver::layer().with_source_location(false);
+    let subscriber = tracing_subscriber::Registry::default().with(stackdriver);
+    tracing::subscriber::set_global_default(subscriber).expect("Could not set up global logger");
+
+    // tracing events from this point on will have their source location omitted
+}
+```
