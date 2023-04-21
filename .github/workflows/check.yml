@@ -1,5 +1,10 @@
-on: [push, pull_request]
 name: Pre-release Checks
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
@@ -34,7 +39,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run cargo check
@@ -54,7 +59,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run cargo test
@@ -74,7 +79,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -96,7 +101,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-docs-${{ hashFiles('**/Cargo.lock') }}
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@nightly
       - name: Run cargo doc
