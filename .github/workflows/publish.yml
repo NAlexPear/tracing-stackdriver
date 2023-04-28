@@ -27,9 +27,9 @@ jobs:
       - name: Install stable toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Extract release version
-        run: echo "cargo_version=$(cargo pkgid | cut -d '#' -f2)" >> $GITHUB_ENV
+        run: echo -n "cargo_version=v$(cargo pkgid | cut -d '#' -f2)" >> $GITHUB_ENV
       - name: Check release version
-        if: 'v${{ env.cargo_version }} != ${{ github.ref_name }}'
+        if: '${{ env.cargo_version != github.ref_name }}'
         uses: actions/github-script@v3
         with:
           script: |

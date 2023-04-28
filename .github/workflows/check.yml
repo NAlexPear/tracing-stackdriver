@@ -1,6 +1,8 @@
 name: Pre-release Checks
 on:
   push:
+    branches-ignore:
+      - master
   pull_request:
     branches:
       - master
