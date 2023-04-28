@@ -18,6 +18,8 @@ pub struct MockDefaultEvent {
     pub source_location: MockSourceLocation,
     #[serde(rename = "logging.googleapis.com/labels", default)]
     pub labels: BTreeMap<String, String>,
+    #[serde(rename = "logging.googleapis.com/insertId", default)]
+    pub insert_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

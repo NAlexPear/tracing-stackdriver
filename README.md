@@ -10,10 +10,11 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 3. `target` derived from the Event `target` [`Metadata`](https://docs.rs/tracing/0.1.13/tracing/struct.Metadata.html)
 4. Span `name` and custom fields included under a `span` key
 5. automatic nesting of `http_request.`-prefixed event fields
-6. automatic nesting of `labels.`-prefixed event fields
-7. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
-8. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
-9. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
+6. automatic nesting of `labels.`-prefixed event fields, re-written as a [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields).
+7. automatic re-writing of `insert_id`s as a [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields).
+8. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
+9. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
+10. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
 
 ### Examples
 
@@ -100,6 +101,28 @@ fn main() {
     //     "isProduction": "true",
     //     "note": "A short note",
     //   }
+    // }
+}
+```
+
+#### With `insert_id` field:
+
+A stringified `insert_id` mapped to the `logging.googleapis.com/insertId` [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields). More information about `insertId` can be found [here](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.insert_id). This is an optional field, as the Logging API assigns its own unique identifier to this field if `insert_id` is omitted.
+
+```rust
+// requires working global setup (see above examples)
+
+fn main() {
+    tracing::info!(
+      insert_id = 1234,
+      "Application starting"
+    );
+
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "message": "Application starting",
+    //   "logging.googleapis.com/insertId": "1234"
     // }
 }
 ```
