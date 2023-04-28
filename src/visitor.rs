@@ -44,21 +44,40 @@ where
             self.serializer.serialize_entry("severity", &severity)?;
 
             let mut http_request = BTreeMap::new();
+            let mut labels = BTreeMap::new();
 
             for (key, value) in self.values {
-                if key.starts_with("http_request.") {
-                    if let Some(request_key) = key.splitn(2, '.').last() {
+                let mut key_segments = key.splitn(2, '.');
+
+                match (key_segments.next(), key_segments.next()) {
+                    (Some("http_request"), Some(request_key)) => {
                         http_request.insert(request_key.to_camel_case(), value);
                     }
-                } else {
-                    self.serializer
-                        .serialize_entry(&key.to_camel_case(), &value)?;
+                    (Some("labels"), Some(label_key)) => {
+                        let value = match value {
+                            serde_json::Value::String(value) => value,
+                            _ => value.to_string(),
+                        };
+
+                        labels.insert(label_key.to_camel_case(), value);
+                    }
+                    (Some(key), None) => self
+                        .serializer
+                        .serialize_entry(&key.to_camel_case(), &value)?,
+                    _ => {
+                        // this should be unreachable for well-fomatted logs
+                    }
                 }
             }
 
             if !http_request.is_empty() {
                 self.serializer
                     .serialize_entry("httpRequest", &http_request)?;
+            }
+
+            if !labels.is_empty() {
+                self.serializer
+                    .serialize_entry("logging.googleapis.com/labels", &labels)?;
             }
 
             self.serializer.end()

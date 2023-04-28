@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::BTreeMap;
 use time::OffsetDateTime;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -15,6 +16,8 @@ pub struct MockDefaultEvent {
     pub severity: String,
     #[serde(rename = "logging.googleapis.com/sourceLocation")]
     pub source_location: MockSourceLocation,
+    #[serde(rename = "logging.googleapis.com/labels", default)]
+    pub labels: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
