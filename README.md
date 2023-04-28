@@ -10,9 +10,10 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 3. `target` derived from the Event `target` [`Metadata`](https://docs.rs/tracing/0.1.13/tracing/struct.Metadata.html)
 4. Span `name` and custom fields included under a `span` key
 5. automatic nesting of `http_request.`-prefixed event fields
-6. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
-7. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
-8. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
+6. automatic nesting of `labels.`-prefixed event fields
+7. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
+8. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
+9. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
 
 ### Examples
 
@@ -71,6 +72,34 @@ fn handle_request(request: Request) {
     //     "requestUrl": "/some/url/from/request"
     //    },
     //   "message": "Request received"
+    // }
+}
+```
+
+#### With `labels` fields:
+
+A key/value map of stringified labels mapped to the `logging.googleapis.com/labels` [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields). More information about `labels` can be found [here](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.labels).
+
+```rust
+// requires working global setup (see above examples)
+
+fn main() {
+    tracing::info!(
+      labels.thread_count = 3,
+      labels.is_production = true,
+      labels.note = "A short note",
+      "Application starting"
+    );
+
+    // jsonPayload formatted as:
+    // {
+    //   "time": "some-timestamp"
+    //   "message": "Application starting",
+    //   "logging.googleapis.com/labels": {
+    //     "threadCount": "3",
+    //     "isProduction": "true",
+    //     "note": "A short note",
+    //   }
     // }
 }
 ```
