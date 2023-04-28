@@ -61,6 +61,15 @@ where
 
                         labels.insert(label_key.to_camel_case(), value);
                     }
+                    (Some("insert_id"), None) => {
+                        let value = match value {
+                            serde_json::Value::String(value) => value,
+                            _ => value.to_string(),
+                        };
+
+                        self.serializer
+                            .serialize_entry("logging.googleapis.com/insertId", &value)?;
+                    }
                     (Some(key), None) => self
                         .serializer
                         .serialize_entry(&key.to_camel_case(), &value)?,
