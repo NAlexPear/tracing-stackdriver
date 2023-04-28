@@ -1,5 +1,7 @@
-## `tracing-stackdriver`
-### A `tracing` Subscriber for communicating Stackdriver-formatted logs
+# `tracing-stackdriver`
+
+![Pre-release Checks](https://github.com/NAlexPear/tracing-stackdriver/actions/workflows/check.yml/badge.svg?branch=master)
+![Crates.io](https://img.shields.io/crates/v/tracing-stackdriver)
 
 [`tracing`](https://docs.rs/tracing/0.1.13/tracing/) is a scoped, structured logging and diagnostic system based on emitting [`Event`](https://docs.rs/tracing/0.1.13/tracing/#events)s in the context of potentially-nested [`Span`](https://docs.rs/tracing/0.1.13/tracing/#spans)s across asynchronous `await` points. These properties make `tracing` ideal for use with [Google Cloud Operations Suite structured logging](https://cloud.google.com/logging/docs/structured-logging) (formerly Stackdriver).
 
