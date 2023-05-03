@@ -1,4 +1,6 @@
 #![allow(clippy::disallowed_names)]
+use std::collections::BTreeMap;
+
 use helpers::run_with_tracing;
 use mocks::{MockDefaultEvent, MockEventWithSpan};
 use serde::Deserialize;
@@ -35,6 +37,22 @@ fn includes_correct_custom_fields() {
     assert!(event.time > start);
     assert_eq!(event.target, "test target");
     assert_eq!(event.severity, "INFO");
+}
+
+#[test]
+fn includes_custom_fields_with_dot() {
+    let events = run_with_tracing::<BTreeMap<String, serde_json::Value>>(|| {
+        tracing::info!(foo.bar = "value", "message")
+    })
+    .expect("Error converting test buffer to JSON");
+
+    let event = events.first().expect("No event heard");
+    assert_eq!(
+        event.get("fooBar"),
+        Some(&serde_json::json!("value")),
+        "full event: {:?}",
+        event
+    );
 }
 
 #[test]
