@@ -14,7 +14,7 @@ This crate provides a [`Layer`](https://docs.rs/tracing-subscriber/0.2.4/tracing
 5. automatic nesting of `http_request.`-prefixed event fields
 6. automatic nesting of `labels.`-prefixed event fields, re-written as a [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields).
 7. automatic re-writing of `insert_id`s as a [special field](https://cloud.google.com/logging/docs/agent/logging/configuration#special-fields).
-8. automatic camelCase-ing of all field keys (e.g. `http_request` -> `httpRequest`)
+8. automatic camelCase-ing of all field keys (e.g. `field_name` -> `fieldName`, or `field.name` -> `fieldName`)
 9. [`valuable`](https://docs.rs/valuable/latest/valuable/) support, including an `HttpRequest` helper `struct`
 10. [Cloud Trace](https://cloud.google.com/trace) support derived from [OpenTelemetry](https://opentelemetry.io) Span and [Trace IDs](https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#FIELDS.trace).
 
