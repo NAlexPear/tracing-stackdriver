@@ -73,9 +73,9 @@ where
                     (Some(key), None) => self
                         .serializer
                         .serialize_entry(&key.to_camel_case(), &value)?,
-                    _ => {
-                        // this should be unreachable for well-fomatted logs
-                    }
+                    _ => self
+                        .serializer
+                        .serialize_entry(&key.to_camel_case(), &value)?,
                 }
             }
 
