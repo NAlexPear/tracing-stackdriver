@@ -10,7 +10,7 @@ use tracing_subscriber::{layer::SubscriberExt, Registry};
 /// Run a traced callback against the default Layer configuration,
 /// deserializing into a collection of a single event type `E`. For deserializing events
 /// of more than a single type, use `serde_json::Map`.
-pub fn run_with_tracing<E>(callback: impl FnOnce() -> ()) -> serde_json::Result<Vec<E>>
+pub fn run_with_tracing<E>(callback: impl FnOnce()) -> serde_json::Result<Vec<E>>
 where
     E: for<'a> Deserialize<'a>,
 {
@@ -21,7 +21,7 @@ where
 // FIXME: handle composable layers (a la "with") in run_with_tracing functions
 pub fn run_with_tracing_layer<E>(
     layer: Layer<Registry>,
-    callback: impl FnOnce() -> (),
+    callback: impl FnOnce(),
 ) -> serde_json::Result<Vec<E>>
 where
     E: for<'a> Deserialize<'a>,

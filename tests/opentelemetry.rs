@@ -51,12 +51,8 @@ where
     SpanId::from_hex(hex).map_err(D::Error::custom)
 }
 
-fn test_with_tracing<M>(
-    span_id: SpanId,
-    trace_id: TraceId,
-    make_writer: M,
-    callback: impl FnOnce() -> (),
-) where
+fn test_with_tracing<M>(span_id: SpanId, trace_id: TraceId, make_writer: M, callback: impl FnOnce())
+where
     M: for<'writer> MakeWriter<'writer> + Sync + Send + 'static,
 {
     // generate the tracing subscriber
