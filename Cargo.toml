@@ -79,6 +79,10 @@ default-features = false
 features = ["testing", "trace"]
 version = "0.20.0"
 
+[dev-dependencies.opentelemetry-stdout]
+features = ["trace"]
+version = "0.1.0"
+
 [features]
 valuable = ["dep:valuable", "valuable-serde", "http", "url"]
 opentelemetry = ["dep:opentelemetry", "tracing-opentelemetry"]

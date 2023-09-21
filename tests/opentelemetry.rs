@@ -2,7 +2,7 @@
 use helpers::MockWriter;
 use lazy_static::lazy_static;
 use opentelemetry::{
-    sdk::{testing::trace::TestSpan, trace::Tracer},
+    sdk::{testing::trace::TestSpan},
     trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
 };
 use rand::Rng;
@@ -11,6 +11,7 @@ use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
 };
+use opentelemetry::sdk::trace::TracerProvider;
 use tracing_stackdriver::CloudTraceConfiguration;
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 
@@ -25,9 +26,9 @@ lazy_static! {
     };
 
     // use a tracer that generates valid span IDs (unlike default NoopTracer)
-    static ref TRACER: Tracer = opentelemetry::sdk::export::trace::stdout::new_pipeline()
-        .with_writer(std::io::sink())
-        .install_simple();
+    static ref TRACER: TracerProvider = TracerProvider::builder()
+        .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
+        .build();
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,6 +56,8 @@ fn test_with_tracing<M>(span_id: SpanId, trace_id: TraceId, make_writer: M, call
 where
     M: for<'writer> MakeWriter<'writer> + Sync + Send + 'static,
 {
+    use opentelemetry::trace::TracerProvider as _;
+
     // generate the tracing subscriber
     let subscriber = tracing_subscriber::registry()
         .with(
@@ -62,7 +65,7 @@ where
                 .with_location(false)
                 .with_threads(false)
                 .with_tracked_inactivity(false)
-                .with_tracer(TRACER.clone()),
+                .with_tracer(TRACER.tracer("test")),
         )
         .with(
             tracing_stackdriver::layer()

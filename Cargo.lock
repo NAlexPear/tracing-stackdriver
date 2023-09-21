@@ -532,6 +532,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry-stdout"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bd550321bc0f9d3f6dcbfe5c75262789de5b3e2776da2cbcfd2392aa05db0c6"
+dependencies = [
+ "futures-util",
+ "opentelemetry_api",
+ "opentelemetry_sdk",
+ "ordered-float",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "opentelemetry_api"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -990,6 +1004,7 @@ dependencies = [
  "http",
  "lazy_static",
  "opentelemetry",
+ "opentelemetry-stdout",
  "rand",
  "serde",
  "serde_json",
