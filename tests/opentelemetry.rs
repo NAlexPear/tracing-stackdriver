@@ -1,8 +1,9 @@
 #![cfg(feature = "opentelemetry")]
 use helpers::MockWriter;
 use lazy_static::lazy_static;
+use opentelemetry::sdk::trace::TracerProvider;
 use opentelemetry::{
-    sdk::{testing::trace::TestSpan},
+    sdk::testing::trace::TestSpan,
     trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
 };
 use rand::Rng;
@@ -11,7 +12,6 @@ use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
 };
-use opentelemetry::sdk::trace::TracerProvider;
 use tracing_stackdriver::CloudTraceConfiguration;
 use tracing_subscriber::{fmt::MakeWriter, layer::SubscriberExt};
 
