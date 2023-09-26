@@ -34,6 +34,10 @@ jobs:
         with:
           script: |
             core.setFailed('Tagged version ${{ github.ref_name }} does not match Cargo version v${{ env.cargo_version }}')
+      - name: Check for SemVer violations
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          feature-group: all-features
       - name: Publish the new version
         run: cargo publish --token ${CRATES_TOKEN}
         env:
