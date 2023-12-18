@@ -1,11 +1,11 @@
 #![cfg(feature = "opentelemetry")]
 use helpers::MockWriter;
 use lazy_static::lazy_static;
-use opentelemetry::sdk::trace::TracerProvider;
 use opentelemetry::{
-    sdk::testing::trace::TestSpan,
+    testing::trace::TestSpan,
     trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
 };
+use opentelemetry_sdk::trace::TracerProvider;
 use rand::Rng;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::{
