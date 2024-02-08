@@ -4,7 +4,7 @@ use std::{
     io,
     sync::{Arc, Mutex, TryLockError},
 };
-use tracing_stackdriver::Layer;
+use tracing_stackdriver_cw::Layer;
 use tracing_subscriber::{layer::SubscriberExt, Registry};
 
 /// Run a traced callback against the default Layer configuration,
@@ -14,7 +14,7 @@ pub fn run_with_tracing<E>(callback: impl FnOnce()) -> serde_json::Result<Vec<E>
 where
     E: for<'a> Deserialize<'a>,
 {
-    run_with_tracing_layer(tracing_stackdriver::layer(), callback)
+    run_with_tracing_layer(tracing_stackdriver_cw::layer(), callback)
 }
 
 /// Run a traced callback against a Layer configuration

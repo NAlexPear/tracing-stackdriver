@@ -17,7 +17,7 @@ fn includes_source_location() {
 
 #[test]
 fn excludes_source_location() {
-    let layer = tracing_stackdriver::layer().with_source_location(false);
+    let layer = tracing_stackdriver_cw::layer().with_source_location(false);
 
     run_with_tracing_layer::<MockDefaultEvent>(layer, || tracing::info!("hello!"))
         .expect_err("Failed to exclude source location fields from events");

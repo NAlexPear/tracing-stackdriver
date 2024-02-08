@@ -5,7 +5,7 @@ use helpers::run_with_tracing;
 use mocks::{MockDefaultEvent, MockEventWithSpan};
 use serde::Deserialize;
 use time::OffsetDateTime;
-use tracing_stackdriver::LogSeverity;
+use tracing_stackdriver_cw::LogSeverity;
 
 mod helpers;
 mod mocks;
