@@ -1,11 +1,11 @@
 [package]
-name = "tracing-stackdriver"
-version = "0.9.0"
-authors = ["Alex Pearson <alex@alexpear.com>"]
+name = "tracing-stackdriver-cw"
+version = "0.1.0"
+authors = ["Alex Pearson <alex@alexpear.com>", "Gabriel Bastos <gabriel.bastos@cloudwalk.io>", "Luiz Silveira <luiz.silveira@cloudwalk.io>"]
 edition = "2021"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/NAlexPear/tracing-stackdriver"
+repository = "https://github.com/cloudwalk/tracing-stackdriver"
 description = "Stackdriver-compatible tracing layer and event formatter"
 keywords = ["tracing", "stackdriver", "logging", "google", "gcp"]
 
