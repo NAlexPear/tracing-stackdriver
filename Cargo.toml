@@ -70,6 +70,8 @@ lazy_static = "1.4.0"
 tracing = "0.1.34"
 rand = "0.8.5"
 opentelemetry_sdk = "0.21.1"
+uuid = { version = "1.7.0", features = ["v4"] }
+chrono = "0.4.31"
 
 [dev-dependencies.time]
 features = ["serde", "serde-well-known", "formatting"]

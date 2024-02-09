@@ -6,8 +6,10 @@ use crate::{
 };
 use serde::ser::{SerializeMap, Serializer as _};
 use std::fmt;
+use std::fmt::Debug;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-use tracing_core::{Event, Subscriber};
+use tracing_core::{Event, Field, Subscriber};
+use tracing_core::field::Visit;
 use tracing_subscriber::{
     field::VisitOutput,
     fmt::{
@@ -16,6 +18,10 @@ use tracing_subscriber::{
     },
     registry::LookupSpan,
 };
+use tracing_subscriber::field::RecordFields;
+use tracing_subscriber::registry::SpanRef;
+use tracing_core::span::{Attributes, Record};
+use tracing_core::field::Value;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -84,7 +90,43 @@ impl EventFormatter {
         // serialize the current span and its leaves
         if let Some(span) = span {
             map.serialize_entry("span", &SerializableSpan::new(&span))?;
-            map.serialize_entry("spans", &SerializableContext::new(context))?;
+            //map.serialize_entry("spans", &SerializableContext::new(context))?;
+            let mut trace_id = TraceIdVisitor { trace_id: None };
+            // event.record(&mut trace_id);
+            if let None = trace_id.trace_id {
+                context.visit_spans(|span| {
+                    for field in span.fields() {
+                        if field.name() == "trace_id" {
+                            // println!("    SPAN has TRACE ID: {:?}", field);
+                            let extensions = span.extensions();
+                            if let Some(json_fields) = extensions.get::<tracing_subscriber::fmt::FormattedFields<tracing_subscriber::fmt::format::JsonFields>>() {
+                                json_fields.record(&field, &mut trace_id);
+                                println!("   SPAN Trace ID: {:?}", trace_id.trace_id);
+                            }
+                        }
+                    }
+                    // let mut span_trace_id = TraceIdVisitor { trace_id: None };
+                    // if let Some(fields) = span.extensions().get::<Fields>() {
+                    //     fields.record(&mut span_trace_id);
+                    // }
+                    // println!("   SPAN Trace ID: {:?}", root_trace_id.trace_id);
+                    Ok::<(), Box<dyn std::error::Error>>(())
+                }).expect("ERROR visiting_spans");
+            }
+            println!("TO ADD TO ROOT Trace ID: {:?}", trace_id.trace_id);
+            // let span_fields = span.fields();
+            // dbg!(span_fields);  // trace_id, for the endpoint log, is in here
+// let _metadata = span.metadata();
+// dbg!(_metadata); // nothing useful here
+//             let _extensions = span.extensions();
+//             dbg!(_extensions);
+            for key in span.extensions().keys() {
+                dbg!(key);
+            }
+
+            if let Some(trace_id) = trace_id.trace_id {
+                map.serialize_entry("traceId", &trace_id)?;
+            }
 
             #[cfg(feature = "opentelemetry")]
             if let (Some(crate::CloudTraceConfiguration { project_id }), Some(otel_data)) = (
@@ -128,6 +170,38 @@ impl EventFormatter {
         Ok(())
     }
 }
+
+// Define a custom visitor that looks for a specific field and stores its value.
+struct TraceIdVisitor {
+    trace_id: Option<String>,
+}
+impl TraceIdVisitor {
+    fn new() -> Self {
+        TraceIdVisitor { trace_id: None }
+    }
+}
+
+impl Visit for TraceIdVisitor {
+    fn record_str(&mut self, field: &Field, value: &str) {
+        if field.name() == "trace_id" {
+            // trace_id can be a json serialized string, so...
+            let value = value.split(":")
+                .skip(1)
+                .map(|quoted| &quoted[1..quoted.len()-2])
+                .find(|_| true)
+                .unwrap_or(value);
+
+            self.trace_id = Some(value.to_string());
+        }
+    }
+    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
+        // if field.name() == "trace_id" {
+        //     self.trace_id = Some(format!("--{:?}", value));
+        // }
+        todo!()
+    }
+}
+
 
 impl<S> FormatEvent<S, JsonFields> for EventFormatter
 where
