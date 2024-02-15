@@ -96,7 +96,6 @@ impl EventFormatter {
                 context.visit_spans(|span| {
                     for field in span.fields() {
                         if field.name() == "trace_id" {
-                            // println!("    SPAN has TRACE ID: {:?}", field);
                             let extensions = span.extensions();
                             if let Some(json_fields) = extensions.get::<tracing_subscriber::fmt::FormattedFields<tracing_subscriber::fmt::format::JsonFields>>() {
                                 json_fields.record(&field, &mut trace_id);
@@ -154,7 +153,7 @@ impl EventFormatter {
     }
 }
 
-// Define a custom visitor that looks for a specific field and stores its value.
+/// A custom visitor that looks for the `trace_id` field and store its value.
 struct TraceIdVisitor {
     trace_id: Option<String>,
 }
@@ -167,7 +166,8 @@ impl TraceIdVisitor {
 impl Visit for TraceIdVisitor {
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name() == "trace_id" {
-            // trace_id can be a json serialized string, so...
+            // `trace_id` can be a json serialized string
+            // -- if so, we unpack it
             let value = value.split(":")
                 .skip(1)
                 .map(|quoted| &quoted[1..quoted.len()-2])
@@ -178,13 +178,8 @@ impl Visit for TraceIdVisitor {
         }
     }
     fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
-        // if field.name() == "trace_id" {
-        //     self.trace_id = Some(format!("--{:?}", value));
-        // }
-        todo!()
     }
 }
-
 
 impl<S> FormatEvent<S, JsonFields> for EventFormatter
 where
