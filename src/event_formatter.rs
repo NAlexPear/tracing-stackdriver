@@ -1,6 +1,6 @@
 use crate::{
     google::LogSeverity,
-    serializers::{SerializableContext, SerializableSpan, SourceLocation},
+    serializers::{SerializableSpan, SourceLocation},
     visitor::Visitor,
     writer::WriteAdaptor,
 };
@@ -10,10 +10,7 @@ use std::fmt::Debug;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tracing_core::field::Value;
 use tracing_core::field::Visit;
-use tracing_core::span::{Attributes, Record};
 use tracing_core::{Event, Field, Subscriber};
-use tracing_subscriber::field::RecordFields;
-use tracing_subscriber::registry::SpanRef;
 use tracing_subscriber::{
     field::VisitOutput,
     fmt::{
@@ -91,8 +88,8 @@ impl EventFormatter {
         if let Some(span) = span {
             map.serialize_entry("span", &SerializableSpan::new(&span))?;
             //map.serialize_entry("spans", &SerializableContext::new(context))?;
-            let mut trace_id = TraceIdVisitor { trace_id: None };
-            if let None = trace_id.trace_id {
+            let mut trace_id = TraceIdVisitor::new();
+            if trace_id.trace_id.is_none() {
                 context
                     .visit_spans(|span| {
                         for field in span.fields() {
@@ -174,7 +171,7 @@ impl Visit for TraceIdVisitor {
             // `trace_id` can be a json serialized string
             // -- if so, we unpack it
             let value = value
-                .split(":")
+                .split(':')
                 .skip(1)
                 .map(|quoted| &quoted[1..quoted.len() - 2])
                 .find(|_| true)
@@ -183,7 +180,7 @@ impl Visit for TraceIdVisitor {
             self.trace_id = Some(value.to_string());
         }
     }
-    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {}
+    fn record_debug(&mut self, _field: &Field, _value: &dyn Debug) {}
 }
 
 impl<S> FormatEvent<S, JsonFields> for EventFormatter

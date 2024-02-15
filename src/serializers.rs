@@ -65,6 +65,7 @@ impl<'a, 'b, S> SerializableContext<'a, 'b, S>
 where
     S: Subscriber + for<'lookup> LookupSpan<'lookup>,
 {
+    #[allow(dead_code)]
     pub(crate) fn new(context: &'b FmtContext<'a, S, JsonFields>) -> Self {
         Self(context)
     }
