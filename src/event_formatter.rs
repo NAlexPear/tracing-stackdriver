@@ -8,8 +8,12 @@ use serde::ser::{SerializeMap, Serializer as _};
 use std::fmt;
 use std::fmt::Debug;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-use tracing_core::{Event, Field, Subscriber};
+use tracing_core::field::Value;
 use tracing_core::field::Visit;
+use tracing_core::span::{Attributes, Record};
+use tracing_core::{Event, Field, Subscriber};
+use tracing_subscriber::field::RecordFields;
+use tracing_subscriber::registry::SpanRef;
 use tracing_subscriber::{
     field::VisitOutput,
     fmt::{
@@ -18,10 +22,6 @@ use tracing_subscriber::{
     },
     registry::LookupSpan,
 };
-use tracing_subscriber::field::RecordFields;
-use tracing_subscriber::registry::SpanRef;
-use tracing_core::span::{Attributes, Record};
-use tracing_core::field::Value;
 
 #[derive(Debug, thiserror::Error)]
 enum Error {
@@ -93,17 +93,22 @@ impl EventFormatter {
             //map.serialize_entry("spans", &SerializableContext::new(context))?;
             let mut trace_id = TraceIdVisitor { trace_id: None };
             if let None = trace_id.trace_id {
-                context.visit_spans(|span| {
-                    for field in span.fields() {
-                        if field.name() == "trace_id" {
-                            let extensions = span.extensions();
-                            if let Some(json_fields) = extensions.get::<tracing_subscriber::fmt::FormattedFields<tracing_subscriber::fmt::format::JsonFields>>() {
-                                json_fields.record(&field, &mut trace_id);
+                context
+                    .visit_spans(|span| {
+                        for field in span.fields() {
+                            if field.name() == "trace_id" {
+                                let extensions = span.extensions();
+                                if let Some(json_fields) = extensions
+                                    .get::<tracing_subscriber::fmt::FormattedFields<
+                                    tracing_subscriber::fmt::format::JsonFields,
+                                >>() {
+                                    json_fields.record(&field, &mut trace_id);
+                                }
                             }
                         }
-                    }
-                    Ok::<(), Box<dyn std::error::Error>>(())
-                }).expect("ERROR visiting_spans");
+                        Ok::<(), Box<dyn std::error::Error>>(())
+                    })
+                    .expect("ERROR visiting_spans");
             }
 
             if let Some(trace_id) = trace_id.trace_id {
@@ -168,17 +173,17 @@ impl Visit for TraceIdVisitor {
         if field.name() == "trace_id" {
             // `trace_id` can be a json serialized string
             // -- if so, we unpack it
-            let value = value.split(":")
+            let value = value
+                .split(":")
                 .skip(1)
-                .map(|quoted| &quoted[1..quoted.len()-2])
+                .map(|quoted| &quoted[1..quoted.len() - 2])
                 .find(|_| true)
                 .unwrap_or(value);
 
             self.trace_id = Some(value.to_string());
         }
     }
-    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
-    }
+    fn record_debug(&mut self, field: &Field, value: &dyn Debug) {}
 }
 
 impl<S> FormatEvent<S, JsonFields> for EventFormatter

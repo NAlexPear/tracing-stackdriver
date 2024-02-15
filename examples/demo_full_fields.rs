@@ -1,7 +1,7 @@
 use tracing::{info, instrument, trace_span};
+use tracing_stackdriver_cw::layer;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::Registry;
-use tracing_stackdriver_cw::layer;
 use uuid::Uuid;
 
 #[instrument]
@@ -62,8 +62,7 @@ async fn main() {
     let stackdriver = layer(); // writes to std::io::Stdout
     let subscriber = Registry::default().with(stackdriver);
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     // For traditional sync functions, tracing-stackdriver will link spans to threads.
     sync_endpoint_function();
