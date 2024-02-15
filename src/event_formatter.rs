@@ -92,7 +92,6 @@ impl EventFormatter {
             map.serialize_entry("span", &SerializableSpan::new(&span))?;
             //map.serialize_entry("spans", &SerializableContext::new(context))?;
             let mut trace_id = TraceIdVisitor { trace_id: None };
-            // event.record(&mut trace_id);
             if let None = trace_id.trace_id {
                 context.visit_spans(|span| {
                     for field in span.fields() {
@@ -101,27 +100,11 @@ impl EventFormatter {
                             let extensions = span.extensions();
                             if let Some(json_fields) = extensions.get::<tracing_subscriber::fmt::FormattedFields<tracing_subscriber::fmt::format::JsonFields>>() {
                                 json_fields.record(&field, &mut trace_id);
-                                println!("   SPAN Trace ID: {:?}", trace_id.trace_id);
                             }
                         }
                     }
-                    // let mut span_trace_id = TraceIdVisitor { trace_id: None };
-                    // if let Some(fields) = span.extensions().get::<Fields>() {
-                    //     fields.record(&mut span_trace_id);
-                    // }
-                    // println!("   SPAN Trace ID: {:?}", root_trace_id.trace_id);
                     Ok::<(), Box<dyn std::error::Error>>(())
                 }).expect("ERROR visiting_spans");
-            }
-            println!("TO ADD TO ROOT Trace ID: {:?}", trace_id.trace_id);
-            // let span_fields = span.fields();
-            // dbg!(span_fields);  // trace_id, for the endpoint log, is in here
-// let _metadata = span.metadata();
-// dbg!(_metadata); // nothing useful here
-//             let _extensions = span.extensions();
-//             dbg!(_extensions);
-            for key in span.extensions().keys() {
-                dbg!(key);
             }
 
             if let Some(trace_id) = trace_id.trace_id {
