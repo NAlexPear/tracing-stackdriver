@@ -5,7 +5,7 @@ use opentelemetry::{
     testing::trace::TestSpan,
     trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState},
 };
-use opentelemetry_sdk::trace::TracerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use rand::Rng;
 use serde::{de::Error, Deserialize, Deserializer};
 use std::{
@@ -26,7 +26,7 @@ lazy_static! {
     };
 
     // use a tracer that generates valid span IDs (unlike default NoopTracer)
-    static ref TRACER: TracerProvider = TracerProvider::builder()
+    static ref TRACER: TracerProvider = SdkTracerProvider::builder()
         .with_simple_exporter(opentelemetry_stdout::SpanExporter::default())
         .build();
 }
