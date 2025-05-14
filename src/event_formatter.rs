@@ -1,15 +1,13 @@
 use crate::{
     google::LogSeverity,
     serializers::{SerializableContext, SerializableSpan, SourceLocation},
-    visitor::Visitor,
     writer::WriteAdaptor,
 };
 use serde::ser::{SerializeMap, Serializer as _};
 use std::fmt;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-use tracing_core::{Event, Subscriber};
+use tracing_core::{field::Visit, Event, Subscriber};
 use tracing_subscriber::{
-    field::VisitOutput,
     fmt::{
         format::{self, JsonFields},
         FmtContext, FormatEvent,
@@ -42,6 +40,78 @@ pub struct EventFormatter {
     pub(crate) cloud_trace_configuration: Option<crate::CloudTraceConfiguration>,
 }
 
+// Helper struct to capture event fields
+struct EventFieldVisitor<'a>(serde_json::Map<String, serde_json::Value>, &'a JsonFields);
+
+impl Visit for EventFieldVisitor<'_> {
+    fn record_f64(&mut self, field: &tracing_core::Field, value: f64) {
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(serde_json::Number::from_f64(value).unwrap_or_else(|| {
+                // tracing::debug!(target: "tracing_stackdriver::event_formatter", "f64 is not finite, using 0.0 instead");
+                serde_json::Number::from(0)
+            })),
+        );
+    }
+
+    fn record_i64(&mut self, field: &tracing_core::Field, value: i64) {
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
+    }
+
+    fn record_u64(&mut self, field: &tracing_core::Field, value: u64) {
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::Number(value.into()),
+        );
+    }
+
+    fn record_bool(&mut self, field: &tracing_core::Field, value: bool) {
+        self.0
+            .insert(field.name().to_string(), serde_json::Value::Bool(value));
+    }
+
+    fn record_str(&mut self, field: &tracing_core::Field, value: &str) {
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
+    }
+
+    fn record_error(
+        &mut self,
+        field: &tracing_core::Field,
+        value: &(dyn std::error::Error + 'static),
+    ) {
+        self.0.insert(
+            field.name().to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
+    }
+
+    fn record_debug(&mut self, field: &tracing_core::Field, value: &dyn fmt::Debug) {
+        match field.name() {
+            // Skip fields that are actually log metadata that have already been handled
+            name if name.starts_with("log.") => (),
+            name if name.starts_with("event.") => (),
+            "message" => {
+                self.0.insert(
+                    "message".to_string(), // Use "message" as the key for the message field
+                    serde_json::Value::String(format!("{:?}", value)),
+                );
+            }
+            _ => {
+                self.0.insert(
+                    field.name().to_string(),
+                    serde_json::Value::String(format!("{:?}", value)),
+                );
+            }
+        }
+    }
+}
+
 impl EventFormatter {
     /// Internal event formatting for a given serializer
     fn format_event<S>(
@@ -62,12 +132,25 @@ impl EventFormatter {
             .and_then(|id| context.span(id))
             .or_else(|| context.lookup_current());
 
-        // FIXME: derive an accurate entry count ahead of time
         let mut map = serializer.serialize_map(None)?;
 
-        // serialize custom fields
+        map.serialize_entry("severity", &severity)?;
         map.serialize_entry("time", &time)?;
-        map.serialize_entry("target", &meta.target())?;
+        map.serialize_entry("target", meta.target())?;
+
+        // Extract and serialize event fields
+        let mut visitor = EventFieldVisitor(serde_json::Map::new(), context.field_format());
+        event.record(&mut visitor);
+
+        for (key, value) in visitor.0 {
+            // The "message" field is often the primary human-readable content.
+            // Google Cloud Logging expects this at the top level of jsonPayload.
+            if key == "message" {
+                map.serialize_entry("message", &value)?;
+            } else {
+                map.serialize_entry(&key, &value)?;
+            }
+        }
 
         if self.include_source_location {
             if let Some(file) = meta.file() {
@@ -81,50 +164,52 @@ impl EventFormatter {
             }
         }
 
-        // serialize the current span and its leaves
-        if let Some(span) = span {
-            map.serialize_entry("span", &SerializableSpan::new(&span))?;
+        if let Some(span_ref) = span {
+            map.serialize_entry("span", &SerializableSpan::new(&span_ref))?;
             map.serialize_entry("spans", &SerializableContext::new(context))?;
 
             #[cfg(feature = "opentelemetry")]
-            if let (Some(crate::CloudTraceConfiguration { project_id }), Some(otel_data)) = (
-                self.cloud_trace_configuration.as_ref(),
-                span.extensions().get::<tracing_opentelemetry::OtelData>(),
-            ) {
-                use opentelemetry::trace::TraceContextExt;
+            if let Some(config) = self.cloud_trace_configuration.as_ref() {
+                // Attempt to get OpenTelemetry trace and span IDs
+                let mut otel_trace_id: Option<String> = None;
+                let mut otel_span_id: Option<String> = None;
+                let mut otel_is_sampled: Option<bool> = None;
 
-                let builder = &otel_data.builder;
+                // Iterate through extensions to find OtelData
+                if let Some(extensions) = span_ref
+                    .extensions()
+                    .get::<tracing_opentelemetry::OtelData>()
+                {
+                    let otel_ctx = &extensions.parent_cx; // Use parent_cx as it reflects the context when span was created
+                    use opentelemetry::trace::TraceContextExt;
+                    if otel_ctx.has_active_span() {
+                        let otel_span_ref = otel_ctx.span();
+                        let otel_span_context = otel_span_ref.span_context();
 
-                if let Some(span_id) = builder.span_id {
-                    map.serialize_entry("logging.googleapis.com/spanId", &span_id.to_string())?;
+                        otel_trace_id = Some(format!(
+                            "projects/{}/traces/{}",
+                            config.project_id,
+                            otel_span_context.trace_id()
+                        ));
+                        otel_span_id = Some(otel_span_context.span_id().to_string());
+                        otel_is_sampled = Some(otel_span_context.is_sampled());
+                    }
                 }
 
-                let (trace_id, trace_sampled) = if otel_data.parent_cx.has_active_span() {
-                    let span_ref = otel_data.parent_cx.span();
-                    let span_context = span_ref.span_context();
-
-                    (Some(span_context.trace_id()), span_context.is_sampled())
-                } else {
-                    (builder.trace_id, false)
-                };
-
-                if let Some(trace_id) = trace_id {
-                    map.serialize_entry(
-                        "logging.googleapis.com/trace",
-                        &format!("projects/{project_id}/traces/{trace_id}",),
-                    )?;
+                if let Some(trace_id_val) = otel_trace_id {
+                    map.serialize_entry("logging.googleapis.com/trace", &trace_id_val)?;
                 }
-
-                if trace_sampled {
+                if let Some(span_id_val) = otel_span_id {
+                    map.serialize_entry("logging.googleapis.com/spanId", &span_id_val)?;
+                }
+                if let Some(true) = otel_is_sampled {
+                    // Only add if true
                     map.serialize_entry("logging.googleapis.com/trace_sampled", &true)?;
                 }
             }
         }
 
-        // serialize the stackdriver-specific fields with a visitor
-        let mut visitor = Visitor::new(severity, map);
-        event.record(&mut visitor);
-        visitor.finish().map_err(Error::from)?;
+        map.end()?;
         Ok(())
     }
 }
@@ -157,3 +242,4 @@ impl Default for EventFormatter {
         }
     }
 }
+
