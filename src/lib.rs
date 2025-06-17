@@ -4,6 +4,7 @@
 #![allow(clippy::needless_doctest_main)]
 #![doc = include_str!("../README.md")]
 
+/// Event formatter for Stackdriver
 pub mod event_formatter;
 mod google;
 mod layer;
