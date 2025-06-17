@@ -4,7 +4,7 @@
 #![allow(clippy::needless_doctest_main)]
 #![doc = include_str!("../README.md")]
 
-mod event_formatter;
+pub mod event_formatter;
 mod google;
 mod layer;
 mod serializers;

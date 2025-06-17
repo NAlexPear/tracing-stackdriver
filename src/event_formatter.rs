@@ -17,6 +17,7 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
+/// Error type for event formatting
 #[derive(Debug, thiserror::Error)]
 enum Error {
     #[error(transparent)]
