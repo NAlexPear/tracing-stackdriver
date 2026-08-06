@@ -6,6 +6,8 @@ use crate::{
 };
 use serde::ser::{SerializeMap, Serializer as _};
 use std::fmt;
+#[cfg(feature = "opentelemetry")]
+use std::sync::Arc;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{
@@ -40,6 +42,8 @@ pub struct EventFormatter {
     pub(crate) include_source_location: bool,
     #[cfg(feature = "opentelemetry")]
     pub(crate) cloud_trace_configuration: Option<crate::CloudTraceConfiguration>,
+    #[cfg(feature = "opentelemetry")]
+    pub(crate) dispatch: Arc<std::sync::OnceLock<tracing_core::dispatcher::WeakDispatch>>,
 }
 
 impl EventFormatter {
@@ -87,36 +91,35 @@ impl EventFormatter {
             map.serialize_entry("spans", &SerializableContext::new(context))?;
 
             #[cfg(feature = "opentelemetry")]
-            if let (Some(crate::CloudTraceConfiguration { project_id }), Some(otel_data)) = (
-                self.cloud_trace_configuration.as_ref(),
-                span.extensions().get::<tracing_opentelemetry::OtelData>(),
-            ) {
+            if let Some(crate::CloudTraceConfiguration { project_id }) =
+                self.cloud_trace_configuration.as_ref()
+            {
                 use opentelemetry::trace::TraceContextExt;
 
-                let builder = &otel_data.builder;
+                if let Some(otel_context) = self
+                    .dispatch
+                    .get()
+                    .and_then(tracing_core::dispatcher::WeakDispatch::upgrade)
+                    .and_then(|dispatch| {
+                        tracing_opentelemetry::get_otel_context(&span.id(), &dispatch)
+                    })
+                {
+                    let otel_span = otel_context.span();
+                    let span_context = otel_span.span_context();
+                    if span_context.is_valid() {
+                        map.serialize_entry(
+                            "logging.googleapis.com/spanId",
+                            &span_context.span_id().to_string(),
+                        )?;
+                        map.serialize_entry(
+                            "logging.googleapis.com/trace",
+                            &format!("projects/{project_id}/traces/{}", span_context.trace_id()),
+                        )?;
 
-                if let Some(span_id) = builder.span_id {
-                    map.serialize_entry("logging.googleapis.com/spanId", &span_id.to_string())?;
-                }
-
-                let (trace_id, trace_sampled) = if otel_data.parent_cx.has_active_span() {
-                    let span_ref = otel_data.parent_cx.span();
-                    let span_context = span_ref.span_context();
-
-                    (Some(span_context.trace_id()), span_context.is_sampled())
-                } else {
-                    (builder.trace_id, false)
-                };
-
-                if let Some(trace_id) = trace_id {
-                    map.serialize_entry(
-                        "logging.googleapis.com/trace",
-                        &format!("projects/{project_id}/traces/{trace_id}",),
-                    )?;
-                }
-
-                if trace_sampled {
-                    map.serialize_entry("logging.googleapis.com/trace_sampled", &true)?;
+                        if span_context.is_sampled() {
+                            map.serialize_entry("logging.googleapis.com/trace_sampled", &true)?;
+                        }
+                    }
                 }
             }
         }
@@ -154,6 +157,8 @@ impl Default for EventFormatter {
             include_source_location: true,
             #[cfg(feature = "opentelemetry")]
             cloud_trace_configuration: None,
+            #[cfg(feature = "opentelemetry")]
+            dispatch: Arc::new(std::sync::OnceLock::new()),
         }
     }
 }

@@ -1,4 +1,6 @@
 use crate::event_formatter::EventFormatter;
+#[cfg(feature = "opentelemetry")]
+use std::sync::{Arc, OnceLock};
 use std::{fmt, io, ops::Deref};
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{
@@ -29,19 +31,31 @@ pub fn layer<S>() -> Layer<S>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
-    Layer(
-        tracing_subscriber::fmt::layer()
+    #[cfg(feature = "opentelemetry")]
+    let dispatch = Arc::new(OnceLock::new());
+    let formatter = EventFormatter {
+        #[cfg(feature = "opentelemetry")]
+        dispatch: dispatch.clone(),
+        ..EventFormatter::default()
+    };
+    Layer {
+        inner: tracing_subscriber::fmt::layer()
             .json()
-            .event_format(EventFormatter::default()),
-    )
+            .event_format(formatter),
+        #[cfg(feature = "opentelemetry")]
+        dispatch,
+    }
 }
 
 /// A tracing-compatible Layer implementation for Stackdriver
-pub struct Layer<S, W = fn() -> io::Stdout>(
-    tracing_subscriber::fmt::Layer<S, JsonFields, EventFormatter, W>,
-)
+pub struct Layer<S, W = fn() -> io::Stdout>
 where
-    S: Subscriber + for<'span> LookupSpan<'span>;
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    inner: tracing_subscriber::fmt::Layer<S, JsonFields, EventFormatter, W>,
+    #[cfg(feature = "opentelemetry")]
+    dispatch: Arc<OnceLock<tracing_core::dispatcher::WeakDispatch>>,
+}
 
 impl<S, W> Layer<S, W>
 where
@@ -53,25 +67,36 @@ where
     where
         M: for<'writer> MakeWriter<'writer> + 'static,
     {
-        Layer(self.0.with_writer(make_writer))
+        Layer {
+            inner: self.inner.with_writer(make_writer),
+            #[cfg(feature = "opentelemetry")]
+            dispatch: self.dispatch,
+        }
     }
 
     /// Configures whether or not Events will include source locations in a special LogEntry field
     pub fn with_source_location(self, include_source_location: bool) -> Self {
-        Self(self.0.map_event_format(|mut event_formatter| {
-            event_formatter.include_source_location = include_source_location;
-            event_formatter
-        }))
+        Self {
+            inner: self.inner.map_event_format(|mut event_formatter| {
+                event_formatter.include_source_location = include_source_location;
+                event_formatter
+            }),
+            #[cfg(feature = "opentelemetry")]
+            dispatch: self.dispatch,
+        }
     }
 
     /// Configures the Cloud Trace integration with OpenTelemetry through special LogEntry fields
     #[cfg_attr(docsrs, doc(cfg(feature = "opentelemetry")))]
     #[cfg(any(docsrs, feature = "opentelemetry"))]
     pub fn with_cloud_trace(self, configuration: crate::CloudTraceConfiguration) -> Self {
-        Self(self.0.map_event_format(|mut event_formatter| {
-            event_formatter.cloud_trace_configuration = Some(configuration);
-            event_formatter
-        }))
+        Self {
+            inner: self.inner.map_event_format(|mut event_formatter| {
+                event_formatter.cloud_trace_configuration = Some(configuration);
+                event_formatter
+            }),
+            dispatch: self.dispatch,
+        }
     }
 }
 
@@ -87,7 +112,7 @@ where
         id: &tracing_core::span::Id,
         context: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.0.on_new_span(attrs, id, context)
+        self.inner.on_new_span(attrs, id, context)
     }
 
     fn on_record(
@@ -96,7 +121,7 @@ where
         values: &tracing_core::span::Record<'_>,
         context: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.0.on_record(span, values, context)
+        self.inner.on_record(span, values, context)
     }
 
     fn on_enter(
@@ -104,7 +129,7 @@ where
         id: &tracing_core::span::Id,
         context: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.0.on_enter(id, context)
+        self.inner.on_enter(id, context)
     }
 
     fn on_exit(
@@ -112,7 +137,7 @@ where
         id: &tracing_core::span::Id,
         context: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.0.on_exit(id, context)
+        self.inner.on_exit(id, context)
     }
 
     fn on_close(
@@ -120,15 +145,21 @@ where
         id: tracing_core::span::Id,
         context: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        self.0.on_close(id, context)
+        self.inner.on_close(id, context)
     }
 
     fn on_event(&self, event: &Event<'_>, context: tracing_subscriber::layer::Context<'_, S>) {
-        self.0.on_event(event, context)
+        self.inner.on_event(event, context)
+    }
+
+    fn on_register_dispatch(&self, subscriber: &tracing_core::Dispatch) {
+        #[cfg(feature = "opentelemetry")]
+        let _ = self.dispatch.set(subscriber.downgrade());
+        self.inner.on_register_dispatch(subscriber)
     }
 
     unsafe fn downcast_raw(&self, id: std::any::TypeId) -> Option<*const ()> {
-        self.0.downcast_raw(id)
+        self.inner.downcast_raw(id)
     }
 }
 
@@ -139,6 +170,6 @@ where
     type Target = tracing_subscriber::fmt::Layer<S, JsonFields, EventFormatter, W>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
